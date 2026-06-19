@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI-Generated Text Detector</title>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --ink-muted: #6e6e73;
+    --paper: #ffffff;
+    --paper-muted: #f5f5f7;
+    --border: rgba(0,0,0,0.08);
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --human: #1d8a4a;
+    --ai: #c2410c;
+    --mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--paper-muted);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  header { text-align: center; margin-bottom: 36px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+  }
+  h1 { font-size: 30px; font-weight: 650; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-muted); font-size: 15px; max-width: 520px; margin: 0 auto; line-height: 1.5; }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 30px -12px rgba(0,0,0,0.10);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 180px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.12); }
+
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 12px; }
+  .count { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); }
+  button {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  /* ---- Results ---- */
+  #results { display: none; }
+
+  .verdict {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+  .verdict-badge {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 6px 14px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+  .verdict-badge.human { background: rgba(29,138,74,0.1); color: var(--human); }
+  .verdict-badge.ai { background: rgba(194,65,12,0.1); color: var(--ai); }
+  .verdict-badge.mixed { background: rgba(180,140,0,0.1); color: #92700a; }
+
+  .verdict-meta { flex: 1; }
+  .verdict-prob { font-family: var(--mono); font-size: 28px; font-weight: 650; line-height: 1; }
+  .verdict-label { font-size: 13px; color: var(--ink-muted); margin-top: 4px; }
+
+  .gauge {
+    height: 6px;
+    border-radius: 4px;
+    background: #e8e8ed;
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 12px;
+  }
+
+  .annotated {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+  .annotated .sent {
+    border-radius: 4px;
+    padding: 1px 2px;
+    cursor: default;
+    transition: background 0.15s ease;
+  }
+  .annotated .sent[data-tier="high"] { background: rgba(194,65,12,0.18); }
+  .annotated .sent[data-tier="med"]  { background: rgba(194,65,12,0.08); }
+  .annotated .sent:hover::after {
+    content: attr(data-pct);
+    font-family: var(--mono);
+    font-size: 10px;
+    background: var(--ink);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  .legend { display: flex; gap: 16px; margin-top: 14px; font-size: 12px; color: var(--ink-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .feature {
+    background: var(--paper);
+    padding: 14px 16px;
+  }
+  .feature-name {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 6px;
+  }
+  .feature-value {
+    font-family: var(--mono);
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 36px;
+    line-height: 1.6;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Text Forensics</div>
+      <h1>AI-Generated Text Detector</h1>
+      <p class="sub">Paste in a paragraph or two. The model scores it using statistical signals — predictability, sentence-to-sentence variance, and lexical patterns — then highlights which sentences read as the most machine-typical.</p>
+    </header>
+
+    <div class="card">
+      <textarea id="input" placeholder="Paste text here to analyze it..."></textarea>
+      <div class="row">
+        <span class="count" id="count">0 words</span>
+        <button id="analyzeBtn">Analyze Text</button>
+      </div>
+      <div class="error" id="error"></div>
+    </div>
+
+    <div id="results">
+      <div class="card verdict">
+        <div class="verdict-badge" id="badge">—</div>
+        <div class="verdict-meta">
+          <div class="verdict-prob" id="probValue">0%</div>
+          <div class="verdict-label" id="probLabel">probability of AI generation</div>
+          <div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Sentence-Level Breakdown</div>
+        <div class="annotated" id="annotated"></div>
+        <div class="legend">
+          <span><span class="swatch" style="background:rgba(194,65,12,0.18)"></span>High AI-likelihood</span>
+          <span><span class="swatch" style="background:rgba(194,65,12,0.08)"></span>Moderate</span>
+          <span><span class="swatch" style="background:transparent;border:1px solid var(--border)"></span>Low</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Diagnostic Readout</div>
+        <div class="features-grid" id="featuresGrid"></div>
+      </div>
+    </div>
+
+    <footer>
+      Statistical-feature classifier — not a certainty score. Trained on a starter dataset; see the
+      <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">README</a>
+      for methodology and known limitations.
+    </footer>
+  </div>
+
+<script>
+  // Point this at your deployed FastAPI backend (e.g. Hugging Face Spaces URL).
+  const API_BASE = window.AI_DETECTOR_API_BASE || "http://localhost:8000";
+
+  const input = document.getElementById('input');
+  const count = document.getElementById('count');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const errorBox = document.getElementById('error');
+  const results = document.getElementById('results');
+
+  input.addEventListener('input', () => {
+    const words = input.value.trim().split(/\s+/).filter(Boolean).length;
+    count.textContent = `${words} word${words === 1 ? '' : 's'}`;
+  });
+
+  const FEATURE_LABELS = {
+    perplexity: 'Perplexity',
+    burstiness: 'Burstiness',
+    type_token_ratio: 'Lexical Diversity',
+    avg_sentence_length: 'Avg Sentence Len',
+    sentence_length_variance: 'Sentence Variance',
+    avg_word_length: 'Avg Word Len',
+    stopword_ratio: 'Stopword Ratio',
+    punctuation_density: 'Punctuation Density',
+    repetition_score: 'Repetition Score',
+    pos_entropy: 'POS Entropy',
+    readability: 'Readability',
+  };
+
+  function tierFor(p) {
+    if (p >= 0.6) return 'high';
+    if (p >= 0.35) return 'med';
+    return 'low';
+  }
+
+  function renderResults(data) {
+    const pct = Math.round(data.ai_probability * 100);
+    document.getElementById('probValue').textContent = `${pct}%`;
+
+    const badge = document.getElementById('badge');
+    const labelMap = {
+      likely_ai: ['ai', 'Likely AI-Generated'],
+      likely_human: ['human', 'Likely Human-Written'],
+      mixed: ['mixed', 'Mixed / Uncertain'],
+    };
+    const [cls, label] = labelMap[data.label] || ['mixed', 'Unknown'];
+    badge.className = `verdict-badge ${cls}`;
+    badge.textContent = label;
+
+    const gauge = document.getElementById('gaugeFill');
+    gauge.style.width = `${pct}%`;
+    gauge.style.background = cls === 'ai' ? 'var(--ai)' : cls === 'human' ? 'var(--human)' : '#b48c00';
+
+    const annotated = document.getElementById('annotated');
+    annotated.innerHTML = '';
+    data.sentences.forEach(s => {
+      const span = document.createElement('span');
+      span.className = 'sent';
+      span.dataset.tier = tierFor(s.ai_probability);
+      span.dataset.pct = `${Math.round(s.ai_probability * 100)}% AI-likely`;
+      span.textContent = s.text + ' ';
+      annotated.appendChild(span);
+    });
+
+    const grid = document.getElementById('featuresGrid');
+    grid.innerHTML = '';
+    Object.entries(FEATURE_LABELS).forEach(([key, label]) => {
+      if (!(key in data.features)) return;
+      const div = document.createElement('div');
+      div.className = 'feature';
+      div.innerHTML = `<div class="feature-name">${label}</div><div class="feature-value">${data.features[key]}</div>`;
+      grid.appendChild(div);
+    });
+
+    results.style.display = 'block';
+  }
+
+  async function analyze() {
+    const text = input.value.trim();
+    errorBox.style.display = 'none';
+
+    if (text.split(/\s+/).filter(Boolean).length < 8) {
+      errorBox.textContent = 'Please enter at least a couple of sentences.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = '<span class="spinner"></span>Analyzing...';
+
+    try {
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Something went wrong.');
+      renderResults(data);
+    } catch (err) {
+      errorBox.textContent = err.message || 'Could not reach the analysis service.';
+      errorBox.style.display = 'block';
+      results.style.display = 'none';
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = 'Analyze Text';
+    }
+  }
+
+  analyzeBtn.addEventListener('click', analyze);
+</script>
+</body>
+</html>
