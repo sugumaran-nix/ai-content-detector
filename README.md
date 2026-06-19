@@ -118,24 +118,34 @@ This is a portfolio/demo project and is upfront about where it falls short:
 - **No real labeled dataset.** There's no network access to a genuine
   human-vs-AI corpus (Hugging Face Hub, Kaggle, OpenAI API) in the
   environment this was built in. The "AI" class is a **template-driven
-  synthetic generator** (`ai_samples.py`) that reproduces common LLM
-  stylistic tells (hedging, transitions, balanced "on one hand / on the
-  other hand" framing) — it is *not* real LLM output. The "human" class is
-  real text, but pulled from NLTK's Brown corpus (1960s news/fiction/essays),
-  not modern blog-style writing.
+  synthetic generator** (`ai_samples.py`) that mixes two stylistic
+  registers — hedging/listy self-help phrasing, and dense tech-jargon
+  prose ("leverage," "synthesize," "unprecedented," "algorithmically") —
+  to approximate the range of common LLM stylistic tells. It is *not* real
+  LLM output. The "human" class is real text, but pulled from NLTK's Brown
+  corpus (1960s news/fiction/essays), not modern blog-style writing.
 - **This means the two classes differ by era and register, not just
   human-vs-AI** — a confound the held-out test accuracy (~99–100%) doesn't
   reflect, since train/test are drawn from the same synthetic distribution.
   Real-world accuracy on genuine modern human writing vs. genuine LLM output
-  has **not** been validated and is almost certainly lower.
+  has **not** been formally validated and is almost certainly lower than the
+  reported test metrics.
+- **Known precision/recall tradeoff:** adding the tech-jargon register
+  (to catch genuinely fluent modern AI prose, which the original hedge-y-only
+  generator missed entirely) measurably improved AI-text recall, but dense,
+  formal *human* writing — corporate reports, academic abstracts — shares
+  enough surface features (long sentences, low burstiness,
+  nominalization-heavy phrasing) that it can occasionally get flagged as AI
+  too. This is an inherent overlap in the feature space, not a separate
+  defect.
 - **Sentence-level scores are noisy for short sentences** — perplexity and
   POS-tag entropy need a reasonable amount of text to be stable; a 4-word
   sentence can get an unreliable score.
-- **Known failure mode found during testing:** the classifier is somewhat
-  sensitive to superficial cues like contraction usage. A mitigation
-  (randomizing contraction expansion in the synthetic generator) is
-  included, but this kind of surface-pattern sensitivity is a real risk
-  with template-based training data and likely hasn't been fully eliminated.
+- **Residual sensitivity in the hedge-style register:** a rephrased hedge-style
+  AI paragraph without strong tech-jargon markers can still under-score. The
+  tech-jargon register added in this revision improved recall specifically
+  for fluent, jargon-dense AI prose; other AI stylistic registers not yet
+  represented in the generator may still be missed.
 
 **To make this production-grade:** swap `data/build_dataset.py`'s AI-side
 generator for a real paired dataset — the

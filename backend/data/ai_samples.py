@@ -102,11 +102,59 @@ LIST_ITEMS = [
 ]
 
 
+TECH_SUBJECTS = [
+    "generative artificial intelligence", "cloud-native infrastructure", "machine learning automation",
+    "blockchain technology", "edge computing", "the Internet of Things", "big data analytics",
+    "natural language processing", "quantum computing", "robotic process automation",
+    "5G connectivity", "digital twin technology", "predictive analytics", "computer vision",
+    "autonomous systems technology", "distributed ledger technology", "real-time data infrastructure",
+    "algorithmic trading", "smart manufacturing", "augmented reality",
+]
+
+TECH_INTROS = [
+    "The rapid integration of {topic} has fundamentally transformed the global digital landscape, driving unprecedented efficiency in automated workflows.",
+    "Recent advances in {topic} have fundamentally reshaped how organizations process and generate information at scale.",
+    "{topic_cap} represents a paradigm shift in how enterprises leverage data-driven decision-making.",
+    "By leveraging advanced computational frameworks, {topic} has unlocked unprecedented levels of operational efficiency.",
+    "As organizations increasingly adopt {topic}, the resulting transformation is reshaping entire industries at scale.",
+]
+
+TECH_BODY = [
+    "By utilizing multi-layered architectures, modern systems process extensive datasets to synthesize coherent, contextually accurate outputs within milliseconds.",
+    "This machine-driven execution eliminates the constraints of traditional manual processes, allowing systems to algorithmically optimize outcomes based on predictive probabilities.",
+    "As a result, the boundary between conventional methods and automated solutions continues to dissolve, giving rise to a new era of scalable, high-density information processing.",
+    "Furthermore, the seamless integration of these frameworks enables organizations to optimize resource allocation and drive measurable performance gains.",
+    "This convergence of robust, data-driven methodologies and scalable infrastructure underscores a broader shift toward algorithmic optimization across the industry.",
+    "Consequently, enterprises are increasingly able to leverage these capabilities to unlock new levels of agility, scalability, and operational resilience.",
+    "These systems are engineered to dynamically adapt to evolving requirements, enabling seamless scalability across diverse operational environments.",
+]
+
+TECH_CONCLUSIONS = [
+    "In this rapidly evolving landscape, {topic} stands as a defining force shaping the future of efficiency and scale.",
+    "As this technology continues to mature, {topic} will likely remain at the forefront of digital transformation.",
+    "Ultimately, the continued evolution of {topic} underscores its central role in driving the next wave of digital innovation.",
+]
+
+
+def generate_ai_paragraph_technical(rng: random.Random) -> str:
+    topic = rng.choice(TECH_SUBJECTS)
+    parts = [_fill(rng.choice(TECH_INTROS), topic)]
+    body_pool = TECH_BODY[:]
+    rng.shuffle(body_pool)
+    for t in body_pool[: rng.randint(2, 4)]:
+        parts.append(t)
+    parts.append(_fill(rng.choice(TECH_CONCLUSIONS), topic))
+    return " ".join(parts)
+
+
 def _fill(template: str, topic: str) -> str:
     return template.format(topic=topic, topic_cap=topic[0].upper() + topic[1:])
 
 
 def generate_ai_paragraph(rng: random.Random) -> str:
+    if rng.random() < 0.5:
+        return generate_ai_paragraph_technical(rng)
+
     topic = rng.choice(TOPICS)
     parts = [_fill(rng.choice(INTROS), topic)]
 

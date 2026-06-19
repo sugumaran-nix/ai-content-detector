@@ -5,12 +5,13 @@ colorFrom: blue
 colorTo: gray
 sdk: docker
 app_port: 7860
-pinned: false
 ---
 
 # AI-Generated Text Detector — API
 
-FastAPI backend for the AI-Generated Text Detector.
+FastAPI backend for the AI-Generated Text Detector. See the main project
+README (in the GitHub repo root, one level up) for full methodology,
+architecture, and limitations.
 
 ## Endpoints
 - `GET /health`
