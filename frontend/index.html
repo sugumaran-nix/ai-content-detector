@@ -264,7 +264,7 @@
   </div>
 <script>window.AI_DETECTOR_API_BASE = "https://huggingface.co/spaces/Sugum4r4n/ai-content-detector";</script>
 <script>
-  const API_BASE = window.location.origin; 
+  const API_BASE = window.AI_DETECTOR_API_BASE || window.location.origin;
 
   const input = document.getElementById('input');
   const count = document.getElementById('count');
