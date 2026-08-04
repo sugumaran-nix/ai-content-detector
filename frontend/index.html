@@ -1,377 +1,1062 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI-Generated Text Detector</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Text Detector</title>
+<meta name="description" content="Statistical classifier that detects AI-generated text using 11 linguistic signals."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
-  :root {
-    --ink: #1d1d1f;
-    --ink-muted: #6e6e73;
-    --paper: #ffffff;
-    --paper-muted: #f5f5f7;
-    --border: rgba(0,0,0,0.08);
-    --accent: #0071e3;
-    --accent-hover: #0077ed;
-    --human: #1d8a4a;
-    --ai: #c2410c;
-    --mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-    --sans: 'Inter', system-ui, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: var(--sans);
-    background: var(--paper-muted);
-    color: var(--ink);
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
-  header { text-align: center; margin-bottom: 36px; }
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-muted);
-    margin-bottom: 10px;
-  }
-  h1 { font-size: 30px; font-weight: 650; margin: 0 0 10px; letter-spacing: -0.01em; }
-  .sub { color: var(--ink-muted); font-size: 15px; max-width: 520px; margin: 0 auto; line-height: 1.5; }
+/* ── TOKENS ── */
+:root {
+  --bg:      #000;
+  --bg1:     #0a0a0a;
+  --bg2:     #111;
+  --bg3:     #181818;
+  --border:  #1f1f1f;
+  --border2: #2a2a2a;
+  --border3: #383838;
+  --text:    #e2e2e2;
+  --muted:   #555;
+  --muted2:  #3a3a3a;
+  --green:   #00e676;
+  --green-d: rgba(0,230,118,0.08);
+  --red:     #ff3b30;
+  --red-d:   rgba(255,59,48,0.08);
+  --amber:   #ffb800;
+  --amber-d: rgba(255,184,0,0.08);
+  --mono:    'JetBrains Mono', monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--mono);
+  background:var(--bg);
+  color:var(--text);
+  font-size:13px;
+  line-height:1.6;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  /* Pattern Craft — dot grid background */
+  background-image:radial-gradient(var(--border2) 1px, transparent 1px);
+  background-size:24px 24px;
+}
+/* Scanline overlay on top panels */
+.scanline::after{
+  content:'';
+  pointer-events:none;
+  position:absolute;
+  inset:0;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+  border-radius:inherit;
+}
 
-  .card {
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 30px -12px rgba(0,0,0,0.10);
-    padding: 24px;
-    margin-bottom: 20px;
-  }
+/* ── TOPBAR ── */
+.topbar{
+  position:sticky;top:0;z-index:200;
+  background:rgba(0,0,0,0.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  height:46px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;
+}
+.topbar-l{display:flex;align-items:center;gap:14px}
+.logo{
+  font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;
+  display:flex;align-items:center;gap:6px;
+}
+.logo-bracket{color:var(--muted)}
+.logo-name{color:var(--text)}
+.logo-acc{color:var(--green)}
+.ver-tag{
+  font-size:9px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--border2);padding:2px 7px;
+}
+.topbar-r{display:flex;align-items:center;gap:14px}
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;color:var(--muted);
+}
+.dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--muted2);flex-shrink:0;
+  transition:background .3s,box-shadow .3s;
+}
+.dot.online{background:var(--green);box-shadow:0 0 6px rgba(0,230,118,.5)}
+.dot.error{background:var(--red)}
+.dot.loading{background:var(--amber);animation:pulse 1s ease infinite}
+.gh-link{
+  display:flex;align-items:center;gap:5px;
+  font-size:10px;color:var(--muted);text-decoration:none;
+  border:1px solid var(--border2);padding:4px 10px;
+  transition:color .15s,border-color .15s;
+}
+.gh-link:hover{color:var(--text);border-color:var(--border3)}
 
-  textarea {
-    width: 100%;
-    min-height: 180px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-family: var(--sans);
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--ink);
-    resize: vertical;
-    outline: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.12); }
+/* ── LAYOUT ── */
+.wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px}
 
-  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 12px; }
-  .count { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); }
-  button {
-    font-family: var(--sans);
-    font-weight: 600;
-    font-size: 14px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 11px 22px;
-    cursor: pointer;
-    transition: background 0.15s ease, opacity 0.15s ease;
-  }
-  button:hover { background: var(--accent-hover); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ── PAGE HEADER ── */
+.page-header{margin-bottom:28px}
+.page-header h1{
+  font-size:24px;font-weight:700;letter-spacing:-0.01em;
+  color:var(--text);margin-bottom:6px;
+}
+.page-header h1 span{color:var(--green)}
+.page-desc{font-size:11px;color:var(--muted);line-height:1.6;max-width:600px}
+.page-desc kbd{
+  font-family:var(--mono);font-size:9px;
+  background:var(--bg3);border:1px solid var(--border3);
+  padding:1px 5px;color:var(--border3);border-bottom-width:2px;color:var(--muted);
+}
 
-  .error {
-    color: #b91c1c;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 13px;
-    margin-top: 12px;
-    display: none;
-  }
+/* ── PANEL ── */
+.panel{
+  border:1px solid var(--border);
+  background:var(--bg1);
+  margin-bottom:2px;
+  position:relative;
+  overflow:hidden;
+}
+.ph{
+  border-bottom:1px solid var(--border);
+  padding:8px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg2);
+  flex-shrink:0;
+}
+.ph-label{
+  font-size:9px;font-weight:700;letter-spacing:0.14em;
+  text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:6px;
+}
+.ph-right{font-size:10px;color:var(--muted2);display:flex;align-items:center;gap:8px}
 
-  /* ---- Results ---- */
-  #results { display: none; }
+/* ── BUTTONS ── */
+button{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:0.06em;text-transform:uppercase;
+  border:1px solid var(--border2);background:transparent;
+  color:var(--muted);padding:7px 13px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:color .15s,border-color .15s,background .15s;
+}
+button:hover{color:var(--text);border-color:var(--border3)}
+button:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+button svg{width:12px;height:12px;flex-shrink:0}
 
-  .verdict {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 20px;
-  }
-  .verdict-badge {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    padding: 6px 14px;
-    border-radius: 100px;
-    white-space: nowrap;
-  }
-  .verdict-badge.human { background: rgba(29,138,74,0.1); color: var(--human); }
-  .verdict-badge.ai { background: rgba(194,65,12,0.1); color: var(--ai); }
-  .verdict-badge.mixed { background: rgba(180,140,0,0.1); color: #92700a; }
+/* Uiverse-inspired glowing primary button */
+.btn-primary{
+  background:var(--green);color:#000;border-color:var(--green);font-weight:700;
+  position:relative;overflow:hidden;
+}
+.btn-primary::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);
+  transform:translateX(-100%);transition:transform 0.5s ease;
+}
+.btn-primary:hover::before{transform:translateX(100%)}
+.btn-primary:hover{background:#00ff8a;border-color:#00ff8a;color:#000;
+  box-shadow:0 0 18px rgba(0,230,118,.35)}
+.btn-primary:disabled{background:var(--border2);color:var(--muted);border-color:var(--border2);box-shadow:none}
 
-  .verdict-meta { flex: 1; }
-  .verdict-prob { font-family: var(--mono); font-size: 28px; font-weight: 650; line-height: 1; }
-  .verdict-label { font-size: 13px; color: var(--ink-muted); margin-top: 4px; }
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-ghost{border-color:transparent}
+.btn-ghost:hover{border-color:var(--border2)}
+.btn-icon{padding:6px;border-color:transparent}
+.btn-icon:hover{border-color:var(--border2)}
+.btn-icon svg{width:13px;height:13px}
 
-  .gauge {
-    height: 6px;
-    border-radius: 4px;
-    background: #e8e8ed;
-    overflow: hidden;
-    margin-top: 14px;
-  }
-  .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+/* ── SAMPLES ── */
+.samples{
+  padding:9px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.samples-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2);margin-right:2px}
 
-  .section-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-muted);
-    margin-bottom: 12px;
-  }
+/* ── TEXTAREA ── */
+.ta-wrap{position:relative}
+textarea{
+  width:100%;min-height:190px;
+  border:none;border-bottom:1px solid var(--border);
+  background:transparent;color:var(--text);
+  font-family:var(--mono);font-size:13px;line-height:1.75;
+  padding:16px 14px;resize:vertical;outline:none;display:block;
+  transition:border-color .15s;
+}
+textarea::placeholder{color:var(--muted2)}
+textarea:focus{border-bottom-color:var(--border3)}
 
-  .annotated {
-    font-size: 16px;
-    line-height: 1.85;
-  }
-  .annotated .sent {
-    border-radius: 4px;
-    padding: 1px 2px;
-    cursor: default;
-    transition: background 0.15s ease;
-  }
-  .annotated .sent[data-tier="high"] { background: rgba(194,65,12,0.18); }
-  .annotated .sent[data-tier="med"]  { background: rgba(194,65,12,0.08); }
-  .annotated .sent:hover::after {
-    content: attr(data-pct);
-    font-family: var(--mono);
-    font-size: 10px;
-    background: var(--ink);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    white-space: nowrap;
-  }
+/* Drag overlay */
+.drag-overlay{
+  position:absolute;inset:0;
+  background:rgba(0,230,118,.04);
+  border:2px dashed var(--green);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--green);letter-spacing:.04em;
+  opacity:0;pointer-events:none;
+  transition:opacity .15s;z-index:10;
+}
+.drag-overlay.active{opacity:1}
 
-  .legend { display: flex; gap: 16px; margin-top: 14px; font-size: 12px; color: var(--ink-muted); }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+/* ── INPUT FOOTER ── */
+.input-foot{
+  padding:10px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;
+}
+.counters{display:flex;align-items:center;gap:14px}
+.char-count{
+  font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  transition:color .2s;
+}
+.char-count.warn{color:var(--amber)}
+.char-count.over{color:var(--red)}
+.prog-track{width:72px;height:2px;background:var(--border2);overflow:hidden}
+.prog-fill{height:100%;background:var(--green);transition:width .1s,background .2s}
+.word-count{font-size:11px;color:var(--muted2)}
 
-  .features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .feature {
-    background: var(--paper);
-    padding: 14px 16px;
-  }
-  .feature-name {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--ink-muted);
-    margin-bottom: 6px;
-  }
-  .feature-value {
-    font-family: var(--mono);
-    font-size: 17px;
-    font-weight: 600;
-  }
+/* ── COLD START ── */
+.cold{
+  border-left:2px solid var(--amber);
+  background:var(--amber-d);
+  padding:9px 14px;
+  border-bottom:1px solid var(--border);
+  display:none;align-items:center;gap:12px;flex-wrap:wrap;
+  font-size:11px;color:var(--amber);
+}
+.cold.on{display:flex}
+.cold-bar-wrap{flex:1;min-width:100px;height:2px;background:var(--border2);overflow:hidden}
+.cold-bar{height:100%;background:var(--amber);animation:coldProg 40s linear forwards}
+@keyframes coldProg{from{width:0}to{width:95%}}
 
-  footer {
-    text-align: center;
-    font-size: 12px;
-    color: var(--ink-muted);
-    margin-top: 36px;
-    line-height: 1.6;
-  }
-  footer a { color: var(--accent); text-decoration: none; }
+/* ── ERROR / SUCCESS TOAST ── */
+.toast-wrap{
+  position:fixed;bottom:24px;right:24px;z-index:500;
+  display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;
+}
+.toast{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;
+  border:1px solid var(--border2);
+  background:var(--bg3);
+  font-size:12px;color:var(--text);
+  min-width:260px;max-width:360px;
+  pointer-events:all;
+  transform:translateX(120%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+}
+.toast.in{transform:translateX(0)}
+.toast.error{border-left:2px solid var(--red);background:rgba(10,0,0,.95)}
+.toast.success{border-left:2px solid var(--green);background:rgba(0,10,0,.95)}
+.toast.warn{border-left:2px solid var(--amber);background:rgba(10,8,0,.95)}
+.toast svg{width:13px;height:13px;flex-shrink:0}
+.toast.error svg{color:var(--red)}
+.toast.success svg{color:var(--green)}
+.toast.warn svg{color:var(--amber)}
 
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid rgba(255,255,255,0.4);
-    border-top-color: white;
-    border-radius: 50%;
-    display: inline-block;
-    animation: spin 0.7s linear infinite;
-    vertical-align: -2px;
-    margin-right: 6px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* ── SPINNER ── */
+.spin{
+  width:11px;height:11px;
+  border:1.5px solid rgba(0,0,0,.25);border-top-color:#000;
+  border-radius:50%;animation:spinner .7s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spinner{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── RESULTS ── */
+#results{display:none;animation:fadeUp .3s ease}
+
+/* VERDICT CARD */
+.verdict-card{
+  border:1px solid var(--border);background:var(--bg1);
+  margin-bottom:2px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;gap:0;
+  overflow:hidden;
+}
+.v-pct-wrap{
+  padding:28px 28px;
+  border-right:1px solid var(--border);
+  text-align:center;
+  background:var(--bg2);
+  min-width:130px;
+}
+.v-pct{
+  font-size:56px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-0.03em;
+  transition:color .4s;
+}
+.v-pct.ai   {color:var(--red);text-shadow:0 0 30px rgba(255,59,48,.3)}
+.v-pct.human{color:var(--green);text-shadow:0 0 30px rgba(0,230,118,.3)}
+.v-pct.mixed{color:var(--amber);text-shadow:0 0 30px rgba(255,184,0,.3)}
+.v-pct-sub{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+
+.v-info{padding:20px 20px;display:flex;flex-direction:column;gap:8px}
+.v-label{
+  font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  transition:color .4s;
+}
+.v-label.ai   {color:var(--red)}
+.v-label.human{color:var(--green)}
+.v-label.mixed{color:var(--amber)}
+.v-sub{font-size:11px;color:var(--muted)}
+.conf-row{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--muted)}
+.conf-track{flex:1;max-width:140px;height:2px;background:var(--border2);overflow:hidden}
+.conf-fill{height:100%;transition:width .5s ease}
+.conf-pct{font-variant-numeric:tabular-nums}
+
+.v-actions{
+  padding:20px;border-left:1px solid var(--border);
+  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+}
+
+/* GAUGE */
+.gauge-row{
+  border:1px solid var(--border);border-top:none;
+  background:var(--bg2);
+  padding:9px 14px;
+  display:flex;align-items:center;gap:12px;
+  font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:2px;
+}
+.gauge-track{
+  flex:1;height:3px;background:var(--border2);
+  position:relative;overflow:visible;
+}
+.gauge-h{position:absolute;left:0;top:0;bottom:0;background:var(--green);transition:width .5s ease}
+.gauge-a{position:absolute;right:0;top:0;bottom:0;background:var(--red);transition:width .5s ease}
+.gauge-needle{
+  position:absolute;top:-5px;bottom:-5px;width:2px;
+  background:var(--text);
+  transform:translateX(-50%);transition:left .5s ease;
+  box-shadow:0 0 6px rgba(255,255,255,.3);
+}
+
+/* SENTENCE BREAKDOWN */
+.annotated{font-size:13px;line-height:2.2;padding:16px 14px}
+.sent{
+  border-radius:2px;padding:1px 3px;
+  cursor:pointer;
+  transition:filter .15s;display:inline;
+}
+.sent:hover{filter:brightness(1.2)}
+.sent.high{background:rgba(255,59,48,.2);color:#ff8580}
+.sent.med {background:rgba(255,184,0,.15);color:#ffd966}
+.sent.low {color:rgba(226,226,226,.7)}
+.legend{
+  padding:8px 14px;border-top:1px solid var(--border);
+  display:flex;gap:18px;flex-wrap:wrap;
+  font-size:10px;color:var(--muted);
+}
+.leg-i{display:flex;align-items:center;gap:6px}
+.swatch{width:8px;height:8px;border-radius:1px;flex-shrink:0}
+
+/* FEATURES */
+.feat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+}
+.feat{
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  padding:14px 14px 12px;
+  cursor:default;
+  transition:background .15s;
+  position:relative;
+  overflow:hidden;
+}
+.feat:hover{background:var(--bg2)}
+/* Uiverse-style subtle left-accent on hover */
+.feat::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--green);transform:scaleY(0);transition:transform .2s;transform-origin:bottom;
+}
+.feat:hover::before{transform:scaleY(1)}
+.feat-name{
+  font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px;
+}
+.feat-val{
+  font-size:22px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--text);
+  line-height:1;margin-bottom:6px;
+}
+.feat-bar-track{height:1px;background:var(--border2);overflow:hidden;margin-top:8px}
+.feat-bar-fill{height:100%;transition:width .6s ease}
+.feat-hint{font-size:9px;color:var(--muted2);margin-top:6px;line-height:1.4}
+
+/* MODEL ROW */
+.model-row{
+  padding:12px 14px;border-top:1px solid var(--border);
+  display:flex;gap:20px;flex-wrap:wrap;align-items:center;
+}
+.mstat{display:flex;flex-direction:column;gap:2px}
+.mstat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2)}
+.mstat-v{font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+
+/* HISTORY */
+.hist-item{
+  border-bottom:1px solid var(--border);
+  padding:11px 14px;
+  display:flex;align-items:center;gap:12px;
+  cursor:pointer;
+  transition:background .12s;
+}
+.hist-item:hover{background:var(--bg2)}
+.hist-item:last-child{border-bottom:none}
+.h-pct{
+  font-size:15px;font-weight:700;
+  font-variant-numeric:tabular-nums;min-width:42px;
+}
+.h-pct.ai   {color:var(--red)}
+.h-pct.human{color:var(--green)}
+.h-pct.mixed{color:var(--amber)}
+.h-meta{flex:1;min-width:0}
+.h-prev{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-sub{font-size:9px;color:var(--muted2);margin-top:2px;display:flex;gap:8px}
+.h-empty{padding:18px 14px;font-size:11px;color:var(--muted2)}
+
+/* GLOBAL TOOLTIP (fixed) */
+#tip{
+  position:fixed;z-index:999;pointer-events:none;
+  background:var(--bg3);border:1px solid var(--border3);
+  padding:7px 12px;font-size:11px;color:var(--text);
+  max-width:240px;line-height:1.5;
+  display:none;
+}
+#tip.on{display:block}
+
+/* FOOTER */
+footer{
+  border-top:1px solid var(--border);
+  padding:14px 20px;
+  font-size:10px;color:var(--muted2);
+  text-align:center;line-height:1.6;margin-top:40px;
+  background:var(--bg1);
+}
+footer a{color:var(--muted);text-decoration:none}
+footer a:hover{color:var(--text)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  .wrap{padding:16px 12px 60px}
+  .topbar{padding:0 12px}
+  .verdict-card{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+  .v-pct-wrap{border-right:none;border-bottom:1px solid var(--border);padding:20px}
+  .v-pct{font-size:44px}
+  .v-actions{border-left:none;border-top:1px solid var(--border);flex-direction:row;justify-content:flex-start}
+  .feat-grid{grid-template-columns:repeat(2,1fr)}
+  .toast-wrap{right:12px;left:12px;bottom:16px}
+  .toast{min-width:0;width:100%}
+  .samples{gap:6px}
+}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="eyebrow">Text Forensics</div>
-      <h1>AI-Generated Text Detector</h1>
-      <p class="sub">Paste in a paragraph or two. The model scores it using statistical signals — predictability, sentence-to-sentence variance, and lexical patterns — then highlights which sentences read as the most machine-typical.</p>
-    </header>
 
-    <div class="card">
-      <textarea id="input" placeholder="Paste text here to analyze it..."></textarea>
-      <div class="row">
-        <span class="count" id="count">0 words</span>
-        <button id="analyzeBtn">Analyze Text</button>
-      </div>
-      <div class="error" id="error"></div>
+<!-- GLOBAL TOOLTIP -->
+<div id="tip"></div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="topbar-l">
+    <div class="logo">
+      <span class="logo-bracket">[</span>
+      <span class="logo-name">AI</span><span class="logo-acc">_DETECT</span>
+      <span class="logo-bracket">]</span>
     </div>
-
-    <div id="results">
-      <div class="card verdict">
-        <div class="verdict-badge" id="badge">—</div>
-        <div class="verdict-meta">
-          <div class="verdict-prob" id="probValue">0%</div>
-          <div class="verdict-label" id="probLabel">probability of AI generation</div>
-          <div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="section-label">Sentence-Level Breakdown</div>
-        <div class="annotated" id="annotated"></div>
-        <div class="legend">
-          <span><span class="swatch" style="background:rgba(194,65,12,0.18)"></span>High AI-likelihood</span>
-          <span><span class="swatch" style="background:rgba(194,65,12,0.08)"></span>Moderate</span>
-          <span><span class="swatch" style="background:transparent;border:1px solid var(--border)"></span>Low</span>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="section-label">Diagnostic Readout</div>
-        <div class="features-grid" id="featuresGrid"></div>
-      </div>
-    </div>
-
-    <footer>
-      Statistical-feature classifier — not a certainty score. Trained on a starter dataset; see the
-      <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">README</a>
-      for methodology and known limitations.
-    </footer>
+    <span class="ver-tag">v1.0</span>
   </div>
-<script>window.AI_DETECTOR_API_BASE = "https://sugum4r4n-ai-content-detector.hf.space";</script>
+  <div class="topbar-r">
+    <div class="status-pill">
+      <div class="dot" id="sDot"></div>
+      <span id="sLabel">connecting...</span>
+    </div>
+    <a class="gh-link" href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      Source
+    </a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <h1>AI-Generated Text <span>Detector</span></h1>
+    <p class="page-desc">
+      Statistical classifier using 11 linguistic signals — perplexity, burstiness, POS entropy &amp; more.
+      No neural model. CPU-only. Free-tier deployable.
+      &nbsp;<kbd>Ctrl</kbd>+<kbd>Enter</kbd> to analyze &nbsp;·&nbsp; <kbd>Ctrl</kbd>+<kbd>L</kbd> to clear
+    </p>
+  </div>
+
+  <!-- INPUT PANEL -->
+  <div class="panel">
+    <div class="ph">
+      <span class="ph-label">
+        <i data-lucide="terminal"></i>
+        Input
+      </span>
+      <div class="ph-right">
+        <span>drag &amp; drop .txt</span>
+        <span>|</span>
+        <span>min 8 words · max 8,000 chars</span>
+      </div>
+    </div>
+
+    <!-- SAMPLE PRESETS -->
+    <div class="samples">
+      <span class="samples-lbl">Try:</span>
+      <button class="btn-sm" data-sample="ai">
+        <i data-lucide="bot"></i>AI sample
+      </button>
+      <button class="btn-sm" data-sample="human">
+        <i data-lucide="user"></i>Human sample
+      </button>
+      <button class="btn-sm" data-sample="mixed">
+        <i data-lucide="shuffle"></i>Mixed
+      </button>
+    </div>
+
+    <!-- COLD START BANNER -->
+    <div class="cold" id="coldBanner">
+      <i data-lucide="zap" style="width:13px;height:13px;color:var(--amber)"></i>
+      <span>Cold start — service is waking up. Takes 20–40s on free tier.</span>
+      <div class="cold-bar-wrap"><div class="cold-bar" id="coldBar"></div></div>
+    </div>
+
+    <!-- TEXTAREA -->
+    <div class="ta-wrap" id="taWrap">
+      <div class="drag-overlay" id="dragOverlay">
+        <i data-lucide="upload" style="margin-right:8px"></i>
+        Drop .txt file to load
+      </div>
+      <textarea
+        id="input"
+        placeholder="Paste text here to analyze…&#10;Supports drag &amp; drop of .txt files."
+      ></textarea>
+    </div>
+
+    <!-- INPUT FOOTER -->
+    <div class="input-foot">
+      <div class="counters">
+        <span class="char-count" id="charCount">0 / 8,000</span>
+        <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+        <span class="word-count" id="wordCount">0 words</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" id="clearBtn">
+          <i data-lucide="x"></i>Clear
+        </button>
+        <button class="btn-primary" id="analyzeBtn">
+          <i data-lucide="scan-text"></i>Analyze
+        </button>
+      </div>
+    </div>
+  </div><!-- /input panel -->
+
+  <!-- RESULTS -->
+  <div id="results">
+
+    <!-- VERDICT -->
+    <div class="verdict-card">
+      <div class="v-pct-wrap scanline">
+        <div class="v-pct" id="vPct">—</div>
+        <div class="v-pct-sub">AI probability</div>
+      </div>
+      <div class="v-info">
+        <div class="v-label" id="vLabel">—</div>
+        <div class="v-sub" id="vSub">Run analysis to see verdict</div>
+        <div class="conf-row">
+          <span>Confidence</span>
+          <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+          <span class="conf-pct" id="confPct">—</span>
+        </div>
+        <div class="conf-row" id="modelBadge" style="margin-top:2px;color:var(--muted2)"></div>
+      </div>
+      <div class="v-actions">
+        <button id="copyBtn" title="Copy results to clipboard">
+          <i data-lucide="copy"></i>Copy
+        </button>
+        <button id="exportBtn" title="Export raw JSON">
+          <i data-lucide="download"></i>JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- GAUGE -->
+    <div class="gauge-row">
+      <span>Human</span>
+      <div class="gauge-track">
+        <div class="gauge-h" id="gaugeH"></div>
+        <div class="gauge-a" id="gaugeA"></div>
+        <div class="gauge-needle" id="gaugeN" style="left:50%"></div>
+      </div>
+      <span>AI</span>
+    </div>
+
+    <!-- SENTENCE BREAKDOWN -->
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-label"><i data-lucide="list"></i>Sentence Breakdown</span>
+        <span class="ph-right">click sentence for score</span>
+      </div>
+      <div class="annotated" id="annotated"></div>
+      <div class="legend">
+        <div class="leg-i"><span class="swatch" style="background:rgba(255,59,48,.2)"></span>High AI &gt;60%</div>
+        <div class="leg-i"><span class="swatch" style="background:rgba(255,184,0,.15)"></span>Moderate 35–60%</div>
+        <div class="leg-i"><span class="swatch" style="background:rgba(226,226,226,.12)"></span>Likely human &lt;35%</div>
+      </div>
+    </div>
+
+    <!-- DIAGNOSTIC READOUT -->
+    <div class="panel" style="margin-top:2px">
+      <div class="ph">
+        <span class="ph-label"><i data-lucide="cpu"></i>Diagnostic Readout</span>
+        <span class="ph-right">hover for explanation</span>
+      </div>
+      <div class="feat-grid" id="featGrid"></div>
+      <div class="model-row" id="modelRow"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="panel" style="margin-top:2px">
+      <div class="ph">
+        <span class="ph-label"><i data-lucide="clock"></i>History</span>
+        <button class="btn-sm btn-ghost" id="clearHistBtn">
+          <i data-lucide="trash-2"></i>Clear
+        </button>
+      </div>
+      <div id="histList"></div>
+    </div>
+
+  </div><!-- /results -->
+</div><!-- /wrap -->
+
+<footer>
+  Statistical-feature classifier · not a certainty score · trained on a starter dataset ·
+  <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">methodology &amp; source</a>
+  &nbsp;·&nbsp; built with FastAPI + plain HTML · deployed on Render + Vercel
+</footer>
+
 <script>
-  const API_BASE = window.AI_DETECTOR_API_BASE || window.location.origin;
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+const API   = window.AI_DETECTOR_API_BASE || 'https://sugum4r4n-ai-content-detector.hf.space';
+const MAX_C = 8000;
+const HIST_KEY = 'aidet_h';
 
-  const input = document.getElementById('input');
-  const count = document.getElementById('count');
-  const analyzeBtn = document.getElementById('analyzeBtn');
-  const errorBox = document.getElementById('error');
-  const results = document.getElementById('results');
+// ── SAMPLES ──────────────────────────────────────────────────────────────────
+const SAMPLES = {
+  ai: `Large language models have revolutionized the field of natural language processing in recent years. These sophisticated systems leverage transformer architectures to generate coherent and contextually relevant text across a wide variety of domains. The implications for various industries are profound and far-reaching. Organizations are increasingly adopting these technologies to enhance productivity and streamline their operations. Furthermore, the potential applications continue to expand as ongoing research progresses toward more capable and efficient systems. It is worth noting that while these models demonstrate impressive capabilities, they also present significant challenges related to alignment, interpretability, and responsible deployment.`,
+  human: `I've been trying to fix this bug for three days and honestly I'm losing it. The weird part is it only happens on Tuesdays? Or at least that's what the logs say. My coworker thinks I'm joking but I pulled the timestamps and yeah — Tuesdays. Something to do with the weekly batch job that runs Monday night, probably. Anyway I added extra logging and I think I'm getting close. Will update tomorrow if I figure it out. Also the coffee machine is broken again which is not helping my mental state at all.`,
+  mixed: `Climate change presents one of the most significant challenges of our time, requiring coordinated action across multiple sectors. Scientists have documented rising global temperatures, with recent years ranking among the hottest on record. I've personally noticed how different winters feel now compared to when I was a kid — we used to get proper snowstorms, now it's just grey and wet. The IPCC reports indicate that limiting warming to 1.5°C would require rapid, far-reaching transitions in energy and industry. That's a lot to ask, but what choice do we really have at this point?`,
+};
 
-  input.addEventListener('input', () => {
-    const words = input.value.trim().split(/\s+/).filter(Boolean).length;
-    count.textContent = `${words} word${words === 1 ? '' : 's'}`;
+// ── FEATURE METADATA ─────────────────────────────────────────────────────────
+const FEAT_META = {
+  perplexity:               { label:'Perplexity',         hint:'How unpredictable word choices are. Low = AI-typical (predictable). Measured via bigram LM.', range:[0,200] },
+  burstiness:               { label:'Burstiness',         hint:'Std-dev of per-sentence perplexity. High = human writing varies more sentence-to-sentence.', range:[0,60] },
+  type_token_ratio:         { label:'Lexical Diversity',  hint:'Unique words ÷ total words. Higher = richer vocabulary. AI often repeats patterns.', range:[0,1] },
+  avg_sentence_length:      { label:'Avg Sent Len',       hint:'Mean words per sentence. AI tends to produce longer, more uniform sentences.', range:[0,40] },
+  sentence_length_variance: { label:'Sent Variance',      hint:'Variation in sentence lengths. Low variance = suspiciously uniform (AI signal).', range:[0,80] },
+  avg_word_length:          { label:'Avg Word Len',       hint:'Mean characters per word. Longer words may indicate formal or AI register.', range:[3,8] },
+  stopword_ratio:           { label:'Stopword Ratio',     hint:'Fraction of common function words. AI may over- or under-use these.', range:[0,0.6] },
+  punctuation_density:      { label:'Punct Density',      hint:'Punctuation marks per character. Deviations from human norms are an AI signal.', range:[0,0.08] },
+  repetition_score:         { label:'Repetition',         hint:'Fraction of repeated word bigrams. Higher = more repetitive phrasing.', range:[0,0.4] },
+  pos_entropy:              { label:'POS Entropy',        hint:'Part-of-speech distribution entropy. Low = grammatically uniform text (AI-typical).', range:[0,4] },
+  readability:              { label:'Readability',        hint:'Flesch Reading Ease (0–100). AI tends toward mid-range. Very high/low = human signal.', range:[-20,100] },
+};
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const inputEl    = $('input');
+const analyzeBtn = $('analyzeBtn');
+const clearBtn   = $('clearBtn');
+const charCount  = $('charCount');
+const wordCount  = $('wordCount');
+const progFill   = $('progFill');
+const coldBanner = $('coldBanner');
+const results    = $('results');
+const tip        = $('tip');
+
+let lastResult   = null;
+let coldTimer    = null;
+let animFrame    = null;
+
+// ── LUCIDE INIT ───────────────────────────────────────────────────────────────
+function initIcons(){ if(window.lucide) lucide.createIcons(); }
+initIcons();
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(msg, type='error', dur=4000){
+  const wrap = $('toastWrap');
+  const t = document.createElement('div');
+  const icons = {error:'alert-circle',success:'check-circle',warn:'zap',info:'info'};
+  t.className = `toast ${type}`;
+  t.innerHTML = `<svg width="13" height="13" data-lucide="${icons[type]||'info'}"></svg><span>${msg}</span>`;
+  wrap.appendChild(t);
+  if(window.lucide) lucide.createIcons({nodes:[t]});
+  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ t.classList.add('in'); }); });
+  setTimeout(()=>{
+    t.classList.remove('in');
+    setTimeout(()=>t.remove(), 300);
+  }, dur);
+}
+
+// ── STATUS ────────────────────────────────────────────────────────────────────
+async function checkStatus(){
+  const dot = $('sDot'), lbl = $('sLabel');
+  dot.className='dot loading'; lbl.textContent='connecting...';
+  try{
+    const r = await fetch(`${API}/health`, {signal:AbortSignal.timeout(9000)});
+    if(r.ok){ dot.className='dot online'; lbl.textContent='online'; fetchModelInfo(); }
+    else throw new Error();
+  } catch {
+    dot.className='dot error'; lbl.textContent='offline';
+  }
+}
+
+async function fetchModelInfo(){
+  try{
+    const r = await fetch(`${API}/model-info`, {signal:AbortSignal.timeout(6000)});
+    if(!r.ok) return;
+    const d = await r.json();
+    const row = $('modelRow');
+    const acc = d.test_accuracy ? (d.test_accuracy*100).toFixed(1)+'%' : '—';
+    const auc = d.test_auc ? d.test_auc.toFixed(3) : '—';
+    const fn  = d.feature_names ? d.feature_names.length : '—';
+    row.innerHTML = `
+      <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">${d.model_name||'—'}</div></div>
+      <div class="mstat"><div class="mstat-l">Test Accuracy</div><div class="mstat-v">${acc}</div></div>
+      <div class="mstat"><div class="mstat-l">Test AUC</div><div class="mstat-v">${auc}</div></div>
+      <div class="mstat"><div class="mstat-l">Features</div><div class="mstat-v">${fn}</div></div>
+    `;
+    $('modelBadge').textContent = `${d.model_name||''} · ${fn} features · acc ${acc}`;
+  } catch{}
+}
+
+// ── COUNTERS ──────────────────────────────────────────────────────────────────
+inputEl.addEventListener('input', updateCounters);
+function updateCounters(){
+  const len   = inputEl.value.length;
+  const words = inputEl.value.trim().split(/\s+/).filter(Boolean).length;
+  const pct   = Math.min(len/MAX_C*100,100);
+  charCount.textContent = `${len.toLocaleString()} / ${MAX_C.toLocaleString()}`;
+  wordCount.textContent = `${words} word${words===1?'':'s'}`;
+  progFill.style.width  = pct+'%';
+  charCount.className   = len>MAX_C ? 'char-count over' : len>MAX_C*.85 ? 'char-count warn' : 'char-count';
+  progFill.style.background = len>MAX_C ? 'var(--red)' : len>MAX_C*.85 ? 'var(--amber)' : 'var(--green)';
+}
+
+// ── SAMPLES ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-sample]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    inputEl.value = SAMPLES[btn.dataset.sample];
+    updateCounters();
+    inputEl.focus();
+  });
+});
+
+// ── DRAG & DROP ───────────────────────────────────────────────────────────────
+const taWrap = $('taWrap');
+const dragOverlay = $('dragOverlay');
+
+['dragenter','dragover'].forEach(ev => {
+  taWrap.addEventListener(ev, e => { e.preventDefault(); dragOverlay.classList.add('active'); });
+});
+['dragleave','dragend'].forEach(ev => {
+  taWrap.addEventListener(ev, e => { if(!taWrap.contains(e.relatedTarget)) dragOverlay.classList.remove('active'); });
+});
+taWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  dragOverlay.classList.remove('active');
+  const file = e.dataTransfer?.files?.[0];
+  if(!file) return;
+  if(!file.name.endsWith('.txt')){ toast('Only .txt files are supported.','warn'); return; }
+  const fr = new FileReader();
+  fr.onload = () => { inputEl.value = fr.result.slice(0,9000); updateCounters(); };
+  fr.readAsText(file);
+});
+
+// ── CLEAR ─────────────────────────────────────────────────────────────────────
+clearBtn.addEventListener('click', ()=>{
+  inputEl.value=''; updateCounters();
+  results.style.display='none';
+  lastResult=null;
+});
+
+// ── KEYBOARD ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); runAnalysis(); }
+  if((e.ctrlKey||e.metaKey)&&e.key==='l'){     e.preventDefault(); clearBtn.click(); }
+});
+
+// ── COLD START ────────────────────────────────────────────────────────────────
+function showCold(){
+  coldBanner.classList.add('on');
+  // reset bar animation
+  const bar = $('coldBar');
+  bar.style.animation='none';
+  void bar.offsetWidth;
+  bar.style.animation='coldProg 40s linear forwards';
+}
+function hideCold(){
+  coldBanner.classList.remove('on');
+  if(coldTimer){ clearTimeout(coldTimer); coldTimer=null; }
+}
+
+// ── ANALYZE ───────────────────────────────────────────────────────────────────
+analyzeBtn.addEventListener('click', runAnalysis);
+
+async function runAnalysis(){
+  const text = inputEl.value.trim();
+  hideCold();
+
+  if(!text){ toast('Paste some text first.','warn'); return; }
+  if(text.length>MAX_C){ toast(`Exceeds ${MAX_C.toLocaleString()} character limit.`,'warn'); return; }
+  const wc = text.split(/\s+/).filter(Boolean).length;
+  if(wc<8){ toast('Too short — need at least 8 words (a couple of sentences).','warn'); return; }
+
+  analyzeBtn.disabled=true;
+  analyzeBtn.innerHTML='<span class="spin"></span>Analyzing...';
+
+  coldTimer = setTimeout(showCold, 5000);
+
+  try{
+    const res = await fetch(`${API}/analyze`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text}),
+      signal:AbortSignal.timeout(120000),
+    });
+    hideCold();
+    const data = await res.json();
+    if(!res.ok){ toast(data.detail||`Server error ${res.status}.`,'error'); return; }
+    lastResult = {data, text, ts:Date.now()};
+    renderResults(data);
+    saveHistory(data, text);
+    $('sDot').className='dot online'; $('sLabel').textContent='online';
+  } catch(err){
+    hideCold();
+    const msg = err.name==='TimeoutError'
+      ? 'Timed out. Service may be cold-starting — wait 30s and try again.'
+      : 'Cannot reach the analysis service. Check connection.';
+    toast(msg,'error',6000);
+    $('sDot').className='dot error'; $('sLabel').textContent='offline';
+  } finally {
+    analyzeBtn.disabled=false;
+    analyzeBtn.innerHTML='<svg data-lucide="scan-text"></svg>Analyze';
+    initIcons();
+  }
+}
+
+// ── ANIMATED COUNTER ─────────────────────────────────────────────────────────
+function animateNum(el, from, to, dur=600){
+  const start = performance.now();
+  if(animFrame) cancelAnimationFrame(animFrame);
+  function step(now){
+    const t = Math.min((now-start)/dur, 1);
+    const ease = 1-Math.pow(1-t,3);
+    el.textContent = Math.round(from+(to-from)*ease)+'%';
+    if(t<1) animFrame=requestAnimationFrame(step);
+  }
+  animFrame=requestAnimationFrame(step);
+}
+
+// ── RENDER RESULTS ────────────────────────────────────────────────────────────
+function renderResults(data){
+  const pct = Math.round(data.ai_probability*100);
+  const cls = data.label==='likely_ai' ? 'ai' : data.label==='likely_human' ? 'human' : 'mixed';
+  const LBL = {likely_ai:'Likely AI-Generated', likely_human:'Likely Human-Written', mixed:'Mixed / Uncertain'};
+
+  // Verdict
+  const vPct = $('vPct');
+  const prev = parseInt(vPct.textContent)||0;
+  vPct.className=`v-pct ${cls}`;
+  animateNum(vPct, prev, pct);
+
+  $('vLabel').className=`v-label ${cls}`;
+  $('vLabel').textContent=LBL[data.label]||'—';
+  $('vSub').textContent=`${pct}% probability of AI generation`;
+
+  const conf=Math.round((data.confidence||0)*100);
+  $('confFill').style.width=conf+'%';
+  $('confFill').style.background = cls==='ai'?'var(--red)':cls==='human'?'var(--green)':'var(--amber)';
+  $('confPct').textContent=conf+'%';
+
+  // Gauge
+  $('gaugeH').style.width=(100-pct)+'%';
+  $('gaugeA').style.width=pct+'%';
+  $('gaugeN').style.left=pct+'%';
+
+  // Sentences
+  const ann = $('annotated');
+  ann.innerHTML='';
+  (data.sentences||[]).forEach(s=>{
+    const p = Math.round(s.ai_probability*100);
+    const tier = p>=60?'high':p>=35?'med':'low';
+    const sp = document.createElement('span');
+    sp.className=`sent ${tier}`;
+    sp.textContent=s.text+' ';
+    sp.addEventListener('click', e=>{
+      const msg = `${p}% AI-likely · ${tier==='high'?'High AI likelihood':tier==='med'?'Moderate':'Likely human'}`;
+      toast(msg, tier==='high'?'error':tier==='med'?'warn':'success', 2500);
+    });
+    ann.appendChild(sp);
   });
 
-  const FEATURE_LABELS = {
-    perplexity: 'Perplexity',
-    burstiness: 'Burstiness',
-    type_token_ratio: 'Lexical Diversity',
-    avg_sentence_length: 'Avg Sentence Len',
-    sentence_length_variance: 'Sentence Variance',
-    avg_word_length: 'Avg Word Len',
-    stopword_ratio: 'Stopword Ratio',
-    punctuation_density: 'Punctuation Density',
-    repetition_score: 'Repetition Score',
-    pos_entropy: 'POS Entropy',
-    readability: 'Readability',
-  };
+  // Features
+  const grid = $('featGrid');
+  grid.innerHTML='';
+  Object.entries(FEAT_META).forEach(([key,meta])=>{
+    if(!(key in data.features)) return;
+    const val = data.features[key];
+    const [lo,hi] = meta.range;
+    const barPct = Math.min(Math.max((val-lo)/(hi-lo)*100,0),100);
+    const div = document.createElement('div');
+    div.className='feat';
+    div.innerHTML=`
+      <div class="feat-name">${meta.label}</div>
+      <div class="feat-val">${val}</div>
+      <div class="feat-hint">${meta.hint.split('.')[0]}.</div>
+      <div class="feat-bar-track"><div class="feat-bar-fill" style="width:${barPct}%;background:var(--border3)"></div></div>
+    `;
+    div.addEventListener('mouseenter', e => showTip(e, meta.hint));
+    div.addEventListener('mousemove',  e => moveTip(e));
+    div.addEventListener('mouseleave', hideTip);
+    grid.appendChild(div);
+  });
 
-  function tierFor(p) {
-    if (p >= 0.6) return 'high';
-    if (p >= 0.35) return 'med';
-    return 'low';
-  }
-
-  function renderResults(data) {
-    const pct = Math.round(data.ai_probability * 100);
-    document.getElementById('probValue').textContent = `${pct}%`;
-
-    const badge = document.getElementById('badge');
-    const labelMap = {
-      likely_ai: ['ai', 'Likely AI-Generated'],
-      likely_human: ['human', 'Likely Human-Written'],
-      mixed: ['mixed', 'Mixed / Uncertain'],
-    };
-    const [cls, label] = labelMap[data.label] || ['mixed', 'Unknown'];
-    badge.className = `verdict-badge ${cls}`;
-    badge.textContent = label;
-
-    const gauge = document.getElementById('gaugeFill');
-    gauge.style.width = `${pct}%`;
-    gauge.style.background = cls === 'ai' ? 'var(--ai)' : cls === 'human' ? 'var(--human)' : '#b48c00';
-
-    const annotated = document.getElementById('annotated');
-    annotated.innerHTML = '';
-    data.sentences.forEach(s => {
-      const span = document.createElement('span');
-      span.className = 'sent';
-      span.dataset.tier = tierFor(s.ai_probability);
-      span.dataset.pct = `${Math.round(s.ai_probability * 100)}% AI-likely`;
-      span.textContent = s.text + ' ';
-      annotated.appendChild(span);
+  // Trigger bar animations
+  setTimeout(()=>{
+    grid.querySelectorAll('.feat-bar-fill').forEach(b=>{
+      b.style.transition='width .6s ease';
     });
+  },50);
 
-    const grid = document.getElementById('featuresGrid');
-    grid.innerHTML = '';
-    Object.entries(FEATURE_LABELS).forEach(([key, label]) => {
-      if (!(key in data.features)) return;
-      const div = document.createElement('div');
-      div.className = 'feature';
-      div.innerHTML = `<div class="feature-name">${label}</div><div class="feature-value">${data.features[key]}</div>`;
-      grid.appendChild(div);
+  results.style.display='block';
+  initIcons();
+  results.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────────
+function showTip(e, text){ tip.textContent=text; tip.className='on'; moveTip(e); }
+function moveTip(e){
+  const x=e.clientX+16, y=e.clientY+16;
+  tip.style.left=Math.min(x,window.innerWidth-260)+'px';
+  tip.style.top=Math.min(y,window.innerHeight-80)+'px';
+}
+function hideTip(){ tip.className=''; }
+
+// ── COPY / EXPORT ─────────────────────────────────────────────────────────────
+$('copyBtn').addEventListener('click', ()=>{
+  if(!lastResult){ toast('Run an analysis first.','warn'); return; }
+  const {data} = lastResult;
+  const pct=Math.round(data.ai_probability*100);
+  const LBL={likely_ai:'Likely AI-Generated',likely_human:'Likely Human-Written',mixed:'Mixed / Uncertain'};
+  const lines=[
+    'AI-Generated Text Detector — Analysis Report',
+    '─'.repeat(48),
+    `Verdict:    ${LBL[data.label]} (${pct}% AI probability)`,
+    `Confidence: ${Math.round((data.confidence||0)*100)}%`,
+    `Model:      ${data.model_name||'N/A'}`,
+    '',
+    'Sentence Breakdown:',
+    ...(data.sentences||[]).map(s=>`  [${Math.round(s.ai_probability*100)}%] ${s.text}`),
+    '',
+    'Diagnostic Features:',
+    ...Object.entries(FEAT_META).map(([k,m])=>`  ${m.label.padEnd(20)} ${data.features[k]??'—'}`),
+  ];
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+    toast('Copied to clipboard.','success',2000);
+  });
+});
+
+$('exportBtn').addEventListener('click', ()=>{
+  if(!lastResult){ toast('Run an analysis first.','warn'); return; }
+  const blob=new Blob([JSON.stringify(lastResult.data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`ai-detect-${lastResult.ts}.json`; a.click();
+  URL.revokeObjectURL(url);
+  toast('JSON exported.','success',2000);
+});
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function loadHist(){ try{ return JSON.parse(sessionStorage.getItem(HIST_KEY))||[]; }catch{ return []; } }
+function saveHist(h){ try{ sessionStorage.setItem(HIST_KEY,JSON.stringify(h)); }catch{} }
+
+function saveHistory(data, text){
+  const h=loadHist();
+  h.unshift({ai_probability:data.ai_probability,label:data.label,preview:text.slice(0,140),ts:Date.now()});
+  saveHist(h.slice(0,10));
+  renderHistory();
+}
+
+function renderHistory(){
+  const h=loadHist();
+  const list=$('histList');
+  if(!h.length){ list.innerHTML='<div class="h-empty">No history. Run an analysis.</div>'; return; }
+  list.innerHTML='';
+  h.forEach(item=>{
+    const cls=item.label==='likely_ai'?'ai':item.label==='likely_human'?'human':'mixed';
+    const LBL={likely_ai:'Likely AI',likely_human:'Likely Human',mixed:'Mixed'};
+    const div=document.createElement('div');
+    div.className='hist-item';
+    div.innerHTML=`
+      <div class="h-pct ${cls}">${Math.round(item.ai_probability*100)}%</div>
+      <div class="h-meta">
+        <div class="h-prev">${esc(item.preview)}${item.preview.length>=140?'…':''}</div>
+        <div class="h-sub"><span>${LBL[item.label]}</span><span>${ago(item.ts)}</span></div>
+      </div>
+    `;
+    div.addEventListener('click',()=>{
+      inputEl.value=item.preview;
+      updateCounters();
+      inputEl.scrollIntoView({behavior:'smooth'});
+      inputEl.focus();
     });
+    list.appendChild(div);
+  });
+}
 
-    results.style.display = 'block';
-  }
+$('clearHistBtn').addEventListener('click',()=>{
+  sessionStorage.removeItem(HIST_KEY);
+  renderHistory();
+  toast('History cleared.','info',1500);
+});
 
-  async function analyze() {
-    const text = input.value.trim();
-    errorBox.style.display = 'none';
+function ago(ts){
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60) return 'just now';
+  if(s<3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    if (text.split(/\s+/).filter(Boolean).length < 8) {
-      errorBox.textContent = 'Please enter at least a couple of sentences.';
-      errorBox.style.display = 'block';
-      return;
-    }
-
-    analyzeBtn.disabled = true;
-    analyzeBtn.innerHTML = '<span class="spinner"></span>Analyzing...';
-
-    try {
-      const res = await fetch(`${API_BASE}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Something went wrong.');
-      renderResults(data);
-    } catch (err) {
-      errorBox.textContent = err.message || 'Could not reach the analysis service.';
-      errorBox.style.display = 'block';
-      results.style.display = 'none';
-    } finally {
-      analyzeBtn.disabled = false;
-      analyzeBtn.textContent = 'Analyze Text';
-    }
-  }
-
-  analyzeBtn.addEventListener('click', analyze);
+// ── INIT ──────────────────────────────────────────────────────────────────────
+checkStatus();
+renderHistory();
 </script>
 </body>
 </html>
