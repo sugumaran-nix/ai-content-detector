@@ -4,1058 +4,1046 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>AI Text Detector</title>
-<meta name="description" content="Statistical classifier that detects AI-generated text using 11 linguistic signals."/>
+<meta name="description" content="Detects AI-generated text using 11 statistical signals. Runs entirely in your browser — no server, no API."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
-/* ── TOKENS ── */
 :root {
-  --bg:      #000;
-  --bg1:     #0a0a0a;
-  --bg2:     #111;
-  --bg3:     #181818;
-  --border:  #1f1f1f;
-  --border2: #2a2a2a;
-  --border3: #383838;
-  --text:    #e2e2e2;
-  --muted:   #555;
-  --muted2:  #3a3a3a;
-  --green:   #00e676;
-  --green-d: rgba(0,230,118,0.08);
-  --red:     #ff3b30;
-  --red-d:   rgba(255,59,48,0.08);
-  --amber:   #ffb800;
-  --amber-d: rgba(255,184,0,0.08);
+  --bg:      #0c0c0c;
+  --s1:      #161616;
+  --s2:      #1e1e1e;
+  --s3:      #282828;
+  --b1:      #2e2e2e;
+  --b2:      #3c3c3c;
+  --t1:      #f0f0f0;
+  --t2:      #a8a8a8;
+  --t3:      #666;
+  --green:   #22c55e;
+  --red:     #ef4444;
+  --amber:   #f59e0b;
+  --blue:    #60a5fa;
+  --sans:    'Inter', system-ui, sans-serif;
   --mono:    'JetBrains Mono', monospace;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{
-  font-family:var(--mono);
-  background:var(--bg);
-  color:var(--text);
-  font-size:13px;
-  line-height:1.6;
-  min-height:100vh;
+  font-family:var(--sans);background:var(--bg);color:var(--t1);
+  font-size:14px;line-height:1.6;min-height:100vh;
   -webkit-font-smoothing:antialiased;
-  /* Pattern Craft — dot grid background */
-  background-image:radial-gradient(var(--border2) 1px, transparent 1px);
-  background-size:24px 24px;
-}
-/* Scanline overlay on top panels */
-.scanline::after{
-  content:'';
-  pointer-events:none;
-  position:absolute;
-  inset:0;
-  background:repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.04) 2px,
-    rgba(0,0,0,0.04) 4px
-  );
-  border-radius:inherit;
 }
 
-/* ── TOPBAR ── */
+/* TOPBAR */
 .topbar{
-  position:sticky;top:0;z-index:200;
-  background:rgba(0,0,0,0.92);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--border);
-  height:46px;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 20px;
+  position:sticky;top:0;z-index:100;
+  background:rgba(12,12,12,.96);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--b1);
+  height:52px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
 }
-.topbar-l{display:flex;align-items:center;gap:14px}
 .logo{
-  font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;
-  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:13px;font-weight:600;
+  color:var(--t1);display:flex;align-items:center;gap:8px;
 }
-.logo-bracket{color:var(--muted)}
-.logo-name{color:var(--text)}
-.logo-acc{color:var(--green)}
-.ver-tag{
-  font-size:9px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
-  color:var(--muted);border:1px solid var(--border2);padding:2px 7px;
+.logo-dot{color:var(--green);font-size:20px;line-height:1}
+.topbar-r{display:flex;align-items:center;gap:12px}
+.badge{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  background:rgba(34,197,94,.12);color:var(--green);
+  border:1px solid rgba(34,197,94,.2);border-radius:4px;
+  padding:3px 8px;letter-spacing:.04em;
 }
-.topbar-r{display:flex;align-items:center;gap:14px}
-.status-pill{
-  display:flex;align-items:center;gap:6px;
-  font-size:10px;color:var(--muted);
-}
-.dot{
-  width:6px;height:6px;border-radius:50%;
-  background:var(--muted2);flex-shrink:0;
-  transition:background .3s,box-shadow .3s;
-}
-.dot.online{background:var(--green);box-shadow:0 0 6px rgba(0,230,118,.5)}
-.dot.error{background:var(--red)}
-.dot.loading{background:var(--amber);animation:pulse 1s ease infinite}
 .gh-link{
+  font-size:12px;color:var(--t2);text-decoration:none;
   display:flex;align-items:center;gap:5px;
-  font-size:10px;color:var(--muted);text-decoration:none;
-  border:1px solid var(--border2);padding:4px 10px;
+  padding:5px 12px;border:1px solid var(--b1);border-radius:6px;
   transition:color .15s,border-color .15s;
 }
-.gh-link:hover{color:var(--text);border-color:var(--border3)}
+.gh-link:hover{color:var(--t1);border-color:var(--b2)}
 
-/* ── LAYOUT ── */
-.wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px}
+/* LAYOUT */
+.wrap{max-width:860px;margin:0 auto;padding:36px 24px 80px}
 
-/* ── PAGE HEADER ── */
-.page-header{margin-bottom:28px}
+/* HEADER */
+.page-header{margin-bottom:32px}
 .page-header h1{
-  font-size:24px;font-weight:700;letter-spacing:-0.01em;
-  color:var(--text);margin-bottom:6px;
+  font-size:26px;font-weight:700;letter-spacing:-.02em;
+  color:var(--t1);margin-bottom:8px;
 }
-.page-header h1 span{color:var(--green)}
-.page-desc{font-size:11px;color:var(--muted);line-height:1.6;max-width:600px}
-.page-desc kbd{
-  font-family:var(--mono);font-size:9px;
-  background:var(--bg3);border:1px solid var(--border3);
-  padding:1px 5px;color:var(--border3);border-bottom-width:2px;color:var(--muted);
+.page-header h1 em{font-style:normal;color:var(--green)}
+.page-desc{font-size:14px;color:var(--t2);line-height:1.7;max-width:600px;margin-bottom:10px}
+.page-caps{
+  display:inline-flex;gap:6px;flex-wrap:wrap;margin-top:4px;
+}
+.cap{
+  font-size:11px;color:var(--t3);
+  border:1px solid var(--b1);border-radius:4px;
+  padding:2px 8px;font-family:var(--mono);
 }
 
-/* ── PANEL ── */
-.panel{
-  border:1px solid var(--border);
-  background:var(--bg1);
-  margin-bottom:2px;
-  position:relative;
-  overflow:hidden;
+/* LOADING OVERLAY */
+#loadOverlay{
+  position:fixed;inset:0;background:var(--bg);z-index:500;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
 }
-.ph{
-  border-bottom:1px solid var(--border);
-  padding:8px 14px;
+#loadOverlay.done{display:none}
+.load-spin{
+  width:32px;height:32px;
+  border:3px solid var(--b1);border-top-color:var(--green);
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+.load-label{font-size:13px;color:var(--t2);font-family:var(--mono)}
+.load-bar-wrap{width:200px;height:3px;background:var(--b1);border-radius:2px;overflow:hidden}
+.load-bar{height:100%;background:var(--green);border-radius:2px;transition:width .3s ease}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* CARD */
+.card{
+  background:var(--s1);border:1px solid var(--b1);
+  border-radius:10px;overflow:hidden;margin-bottom:12px;
+}
+.ch{
+  padding:11px 18px;border-bottom:1px solid var(--b1);
   display:flex;align-items:center;justify-content:space-between;
-  background:var(--bg2);
-  flex-shrink:0;
+  background:var(--s2);
 }
-.ph-label{
-  font-size:9px;font-weight:700;letter-spacing:0.14em;
-  text-transform:uppercase;color:var(--muted);
+.ch-title{
+  font-size:12px;font-weight:600;color:var(--t2);
   display:flex;align-items:center;gap:6px;
 }
-.ph-right{font-size:10px;color:var(--muted2);display:flex;align-items:center;gap:8px}
+.ch-title svg{width:14px;height:14px;flex-shrink:0}
+.ch-meta{font-size:11px;color:var(--t3)}
 
-/* ── BUTTONS ── */
-button{
-  font-family:var(--mono);font-size:11px;font-weight:600;
-  letter-spacing:0.06em;text-transform:uppercase;
-  border:1px solid var(--border2);background:transparent;
-  color:var(--muted);padding:7px 13px;cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;
-  transition:color .15s,border-color .15s,background .15s;
-}
-button:hover{color:var(--text);border-color:var(--border3)}
-button:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
-button svg{width:12px;height:12px;flex-shrink:0}
-
-/* Uiverse-inspired glowing primary button */
-.btn-primary{
-  background:var(--green);color:#000;border-color:var(--green);font-weight:700;
-  position:relative;overflow:hidden;
-}
-.btn-primary::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);
-  transform:translateX(-100%);transition:transform 0.5s ease;
-}
-.btn-primary:hover::before{transform:translateX(100%)}
-.btn-primary:hover{background:#00ff8a;border-color:#00ff8a;color:#000;
-  box-shadow:0 0 18px rgba(0,230,118,.35)}
-.btn-primary:disabled{background:var(--border2);color:var(--muted);border-color:var(--border2);box-shadow:none}
-
-.btn-sm{padding:4px 10px;font-size:10px}
-.btn-ghost{border-color:transparent}
-.btn-ghost:hover{border-color:var(--border2)}
-.btn-icon{padding:6px;border-color:transparent}
-.btn-icon:hover{border-color:var(--border2)}
-.btn-icon svg{width:13px;height:13px}
-
-/* ── SAMPLES ── */
+/* SAMPLES */
 .samples{
-  padding:9px 14px;
-  border-bottom:1px solid var(--border);
+  padding:12px 18px;border-bottom:1px solid var(--b1);
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
 }
-.samples-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2);margin-right:2px}
+.slabel{font-size:12px;color:var(--t3)}
+.sbtn{
+  font-family:var(--sans);font-size:12px;font-weight:500;
+  background:var(--s3);color:var(--t2);
+  border:1px solid var(--b1);border-radius:6px;
+  padding:5px 12px;cursor:pointer;
+  transition:color .15s,border-color .15s,background .15s;
+}
+.sbtn:hover{color:var(--t1);border-color:var(--b2);background:var(--s2)}
 
-/* ── TEXTAREA ── */
+/* DRAG AREA */
 .ta-wrap{position:relative}
-textarea{
-  width:100%;min-height:190px;
-  border:none;border-bottom:1px solid var(--border);
-  background:transparent;color:var(--text);
-  font-family:var(--mono);font-size:13px;line-height:1.75;
-  padding:16px 14px;resize:vertical;outline:none;display:block;
-  transition:border-color .15s;
-}
-textarea::placeholder{color:var(--muted2)}
-textarea:focus{border-bottom-color:var(--border3)}
-
-/* Drag overlay */
-.drag-overlay{
-  position:absolute;inset:0;
-  background:rgba(0,230,118,.04);
-  border:2px dashed var(--green);
+.drag-ol{
+  position:absolute;inset:0;z-index:10;pointer-events:none;
+  background:rgba(34,197,94,.04);border:2px dashed var(--green);
   display:flex;align-items:center;justify-content:center;
-  font-size:12px;color:var(--green);letter-spacing:.04em;
-  opacity:0;pointer-events:none;
-  transition:opacity .15s;z-index:10;
+  font-size:13px;color:var(--green);gap:8px;
+  opacity:0;transition:opacity .15s;
 }
-.drag-overlay.active{opacity:1}
+.drag-ol.on{opacity:1}
+textarea{
+  width:100%;min-height:200px;
+  background:transparent;color:var(--t1);
+  font-family:var(--mono);font-size:13px;line-height:1.8;
+  border:none;border-bottom:1px solid var(--b1);
+  padding:18px;resize:vertical;outline:none;display:block;
+}
+textarea::placeholder{color:var(--t3)}
+textarea:focus{border-bottom-color:var(--b2)}
 
-/* ── INPUT FOOTER ── */
-.input-foot{
-  padding:10px 14px;
+/* INPUT FOOTER */
+.ifoot{
+  padding:12px 18px;
   display:flex;align-items:center;justify-content:space-between;
   gap:12px;flex-wrap:wrap;
 }
-.counters{display:flex;align-items:center;gap:14px}
-.char-count{
-  font-size:11px;color:var(--muted);
-  font-variant-numeric:tabular-nums;
-  transition:color .2s;
-}
-.char-count.warn{color:var(--amber)}
-.char-count.over{color:var(--red)}
-.prog-track{width:72px;height:2px;background:var(--border2);overflow:hidden}
-.prog-fill{height:100%;background:var(--green);transition:width .1s,background .2s}
-.word-count{font-size:11px;color:var(--muted2)}
+.counters{display:flex;align-items:center;gap:12px}
+.ccount{font-family:var(--mono);font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
+.ccount.warn{color:var(--amber)}.ccount.over{color:var(--red)}
+.prog-wrap{width:72px;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--green);border-radius:2px;transition:width .1s,background .2s}
+.wcount{font-size:12px;color:var(--t3)}
 
-/* ── COLD START ── */
-.cold{
-  border-left:2px solid var(--amber);
-  background:var(--amber-d);
-  padding:9px 14px;
-  border-bottom:1px solid var(--border);
-  display:none;align-items:center;gap:12px;flex-wrap:wrap;
-  font-size:11px;color:var(--amber);
+/* BUTTONS */
+.btn{
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  border:1px solid var(--b1);background:var(--s2);color:var(--t2);
+  border-radius:7px;padding:8px 16px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:color .15s,border-color .15s,background .15s;
 }
-.cold.on{display:flex}
-.cold-bar-wrap{flex:1;min-width:100px;height:2px;background:var(--border2);overflow:hidden}
-.cold-bar{height:100%;background:var(--amber);animation:coldProg 40s linear forwards}
-@keyframes coldProg{from{width:0}to{width:95%}}
+.btn:hover{color:var(--t1);border-color:var(--b2);background:var(--s3)}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn-primary{
+  background:var(--green);color:#000;border-color:var(--green);font-weight:600;
+}
+.btn-primary:hover{background:#4ade80;border-color:#4ade80;color:#000;box-shadow:0 0 18px rgba(34,197,94,.2)}
+.btn-primary:disabled{background:var(--s3);color:var(--t3);border-color:var(--b1);box-shadow:none}
+.btn-sm{font-size:12px;padding:6px 12px}
+.btn-ghost{border-color:transparent;background:transparent}
+.btn-ghost:hover{border-color:var(--b1);background:var(--s2)}
 
-/* ── ERROR / SUCCESS TOAST ── */
-.toast-wrap{
+/* TOAST */
+.toast-stack{
   position:fixed;bottom:24px;right:24px;z-index:500;
-  display:flex;flex-direction:column;gap:8px;
-  pointer-events:none;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none;
 }
 .toast{
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px;
-  border:1px solid var(--border2);
-  background:var(--bg3);
-  font-size:12px;color:var(--text);
-  min-width:260px;max-width:360px;
-  pointer-events:all;
-  transform:translateX(120%);
-  transition:transform .25s cubic-bezier(.4,0,.2,1);
+  display:flex;align-items:flex-start;gap:10px;
+  padding:11px 15px;
+  background:var(--s2);border:1px solid var(--b2);border-radius:8px;
+  font-size:13px;color:var(--t1);
+  min-width:250px;max-width:360px;pointer-events:all;
+  transform:translateX(110%);transition:transform .22s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 4px 24px rgba(0,0,0,.5);
 }
-.toast.in{transform:translateX(0)}
-.toast.error{border-left:2px solid var(--red);background:rgba(10,0,0,.95)}
-.toast.success{border-left:2px solid var(--green);background:rgba(0,10,0,.95)}
-.toast.warn{border-left:2px solid var(--amber);background:rgba(10,8,0,.95)}
-.toast svg{width:13px;height:13px;flex-shrink:0}
-.toast.error svg{color:var(--red)}
-.toast.success svg{color:var(--green)}
-.toast.warn svg{color:var(--amber)}
+.toast.show{transform:translateX(0)}
+.toast svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
+.toast.err {border-left:3px solid var(--red);  } .toast.err  svg{color:var(--red)}
+.toast.ok  {border-left:3px solid var(--green); } .toast.ok   svg{color:var(--green)}
+.toast.warn{border-left:3px solid var(--amber); } .toast.warn svg{color:var(--amber)}
+.toast.info{border-left:3px solid var(--blue);  } .toast.info svg{color:var(--blue)}
 
-/* ── SPINNER ── */
-.spin{
-  width:11px;height:11px;
-  border:1.5px solid rgba(0,0,0,.25);border-top-color:#000;
-  border-radius:50%;animation:spinner .7s linear infinite;
-  flex-shrink:0;
+/* INLINE SPINNER */
+.spin-sm{
+  width:13px;height:13px;
+  border:2px solid rgba(0,0,0,.2);border-top-color:#000;
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;
 }
-@keyframes spinner{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-/* ── RESULTS ── */
+/* RESULTS */
 #results{display:none;animation:fadeUp .3s ease}
 
-/* VERDICT CARD */
+/* VERDICT */
 .verdict-card{
-  border:1px solid var(--border);background:var(--bg1);
-  margin-bottom:2px;
-  display:grid;
-  grid-template-columns:auto 1fr auto;
-  align-items:center;gap:0;
-  overflow:hidden;
+  background:var(--s1);border:1px solid var(--b1);border-radius:10px;
+  overflow:hidden;margin-bottom:12px;
 }
-.v-pct-wrap{
-  padding:28px 28px;
-  border-right:1px solid var(--border);
-  text-align:center;
-  background:var(--bg2);
-  min-width:130px;
+.verdict-main{display:grid;grid-template-columns:160px 1fr auto;align-items:stretch}
+.v-score{
+  background:var(--s2);border-right:1px solid var(--b1);
+  padding:28px 20px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;
 }
-.v-pct{
-  font-size:56px;font-weight:700;line-height:1;
-  font-variant-numeric:tabular-nums;letter-spacing:-0.03em;
+.v-num{
+  font-family:var(--mono);font-size:52px;font-weight:700;
+  line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.03em;
   transition:color .4s;
 }
-.v-pct.ai   {color:var(--red);text-shadow:0 0 30px rgba(255,59,48,.3)}
-.v-pct.human{color:var(--green);text-shadow:0 0 30px rgba(0,230,118,.3)}
-.v-pct.mixed{color:var(--amber);text-shadow:0 0 30px rgba(255,184,0,.3)}
-.v-pct-sub{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
-
-.v-info{padding:20px 20px;display:flex;flex-direction:column;gap:8px}
-.v-label{
-  font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  transition:color .4s;
-}
-.v-label.ai   {color:var(--red)}
-.v-label.human{color:var(--green)}
-.v-label.mixed{color:var(--amber)}
-.v-sub{font-size:11px;color:var(--muted)}
-.conf-row{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--muted)}
-.conf-track{flex:1;max-width:140px;height:2px;background:var(--border2);overflow:hidden}
-.conf-fill{height:100%;transition:width .5s ease}
-.conf-pct{font-variant-numeric:tabular-nums}
-
-.v-actions{
-  padding:20px;border-left:1px solid var(--border);
-  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
-}
+.v-num.ai   {color:var(--red)}
+.v-num.human{color:var(--green)}
+.v-num.mixed{color:var(--amber)}
+.v-score-lbl{font-size:11px;color:var(--t3);letter-spacing:.04em}
+.v-body{padding:22px 20px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.v-verdict{font-size:15px;font-weight:600;transition:color .4s}
+.v-verdict.ai   {color:var(--red)} .v-verdict.human{color:var(--green)} .v-verdict.mixed{color:var(--amber)}
+.v-sub{font-size:13px;color:var(--t2)}
+.conf-row{display:flex;align-items:center;gap:10px}
+.conf-lbl{font-size:12px;color:var(--t3)}
+.conf-track{width:120px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
+.conf-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.conf-val{font-family:var(--mono);font-size:12px;color:var(--t2)}
+.model-badge{font-family:var(--mono);font-size:11px;color:var(--t3)}
+.v-actions{padding:22px 18px;border-left:1px solid var(--b1);display:flex;flex-direction:column;gap:8px;justify-content:center}
 
 /* GAUGE */
-.gauge-row{
-  border:1px solid var(--border);border-top:none;
-  background:var(--bg2);
-  padding:9px 14px;
-  display:flex;align-items:center;gap:12px;
-  font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;
-  margin-bottom:2px;
-}
-.gauge-track{
-  flex:1;height:3px;background:var(--border2);
-  position:relative;overflow:visible;
-}
-.gauge-h{position:absolute;left:0;top:0;bottom:0;background:var(--green);transition:width .5s ease}
-.gauge-a{position:absolute;right:0;top:0;bottom:0;background:var(--red);transition:width .5s ease}
-.gauge-needle{
-  position:absolute;top:-5px;bottom:-5px;width:2px;
-  background:var(--text);
+.gauge-wrap{padding:12px 20px;border-top:1px solid var(--b1);display:flex;align-items:center;gap:14px}
+.g-lbl{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.g-track{flex:1;height:6px;background:var(--s3);border-radius:3px;position:relative;overflow:visible}
+.g-green{position:absolute;left:0;top:0;bottom:0;background:var(--green);border-radius:3px 0 0 3px;transition:width .5s ease}
+.g-red  {position:absolute;right:0;top:0;bottom:0;background:var(--red);border-radius:0 3px 3px 0;transition:width .5s ease}
+.g-needle{
+  position:absolute;top:-5px;bottom:-5px;width:3px;background:#fff;border-radius:2px;
   transform:translateX(-50%);transition:left .5s ease;
-  box-shadow:0 0 6px rgba(255,255,255,.3);
+  box-shadow:0 0 8px rgba(255,255,255,.3);
 }
 
-/* SENTENCE BREAKDOWN */
-.annotated{font-size:13px;line-height:2.2;padding:16px 14px}
-.sent{
-  border-radius:2px;padding:1px 3px;
-  cursor:pointer;
-  transition:filter .15s;display:inline;
+/* SENTENCES */
+.annotated{font-size:14px;line-height:2.3;padding:20px 18px}
+.sent{display:inline;border-radius:4px;padding:2px 4px;cursor:pointer;transition:opacity .15s}
+.sent:hover{opacity:.8}
+.sent.high{background:rgba(239,68,68,.18);color:#fca5a5}
+.sent.med {background:rgba(245,158,11,.15);color:#fcd34d}
+.sent.low {color:var(--t2)}
+.legend-row{
+  padding:10px 18px;border-top:1px solid var(--b1);
+  display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--t3);
 }
-.sent:hover{filter:brightness(1.2)}
-.sent.high{background:rgba(255,59,48,.2);color:#ff8580}
-.sent.med {background:rgba(255,184,0,.15);color:#ffd966}
-.sent.low {color:rgba(226,226,226,.7)}
-.legend{
-  padding:8px 14px;border-top:1px solid var(--border);
-  display:flex;gap:18px;flex-wrap:wrap;
-  font-size:10px;color:var(--muted);
-}
-.leg-i{display:flex;align-items:center;gap:6px}
-.swatch{width:8px;height:8px;border-radius:1px;flex-shrink:0}
+.leg{display:flex;align-items:center;gap:6px}
+.swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 
 /* FEATURES */
-.feat-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
-}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
 .feat{
-  border-right:1px solid var(--border);
-  border-bottom:1px solid var(--border);
-  padding:14px 14px 12px;
-  cursor:default;
-  transition:background .15s;
-  position:relative;
-  overflow:hidden;
+  padding:16px 16px 14px;
+  border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);
+  transition:background .15s;cursor:default;
 }
-.feat:hover{background:var(--bg2)}
-/* Uiverse-style subtle left-accent on hover */
-.feat::before{
-  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
-  background:var(--green);transform:scaleY(0);transition:transform .2s;transform-origin:bottom;
-}
-.feat:hover::before{transform:scaleY(1)}
-.feat-name{
-  font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:6px;
-}
-.feat-val{
-  font-size:22px;font-weight:700;
-  font-variant-numeric:tabular-nums;color:var(--text);
-  line-height:1;margin-bottom:6px;
-}
-.feat-bar-track{height:1px;background:var(--border2);overflow:hidden;margin-top:8px}
-.feat-bar-fill{height:100%;transition:width .6s ease}
-.feat-hint{font-size:9px;color:var(--muted2);margin-top:6px;line-height:1.4}
+.feat:hover{background:var(--s2)}
+.feat-lbl{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.feat-val{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--t1);line-height:1;margin-bottom:8px;font-variant-numeric:tabular-nums}
+.feat-bar-t{height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+.feat-bar-f{height:100%;border-radius:2px;background:var(--b2);transition:width .6s ease}
+.feat-desc{font-size:11px;color:var(--t3);margin-top:8px;line-height:1.4}
 
 /* MODEL ROW */
 .model-row{
-  padding:12px 14px;border-top:1px solid var(--border);
-  display:flex;gap:20px;flex-wrap:wrap;align-items:center;
+  padding:14px 18px;border-top:1px solid var(--b1);
+  display:flex;gap:24px;flex-wrap:wrap;align-items:center;
 }
 .mstat{display:flex;flex-direction:column;gap:2px}
-.mstat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2)}
-.mstat-v{font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.mstat-l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}
+.mstat-v{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--t1)}
 
 /* HISTORY */
 .hist-item{
-  border-bottom:1px solid var(--border);
-  padding:11px 14px;
-  display:flex;align-items:center;gap:12px;
-  cursor:pointer;
-  transition:background .12s;
+  padding:12px 18px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;gap:14px;cursor:pointer;transition:background .12s;
 }
-.hist-item:hover{background:var(--bg2)}
+.hist-item:hover{background:var(--s2)}
 .hist-item:last-child{border-bottom:none}
-.h-pct{
-  font-size:15px;font-weight:700;
-  font-variant-numeric:tabular-nums;min-width:42px;
-}
-.h-pct.ai   {color:var(--red)}
-.h-pct.human{color:var(--green)}
-.h-pct.mixed{color:var(--amber)}
-.h-meta{flex:1;min-width:0}
-.h-prev{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.h-sub{font-size:9px;color:var(--muted2);margin-top:2px;display:flex;gap:8px}
-.h-empty{padding:18px 14px;font-size:11px;color:var(--muted2)}
+.h-pct{font-family:var(--mono);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;min-width:44px}
+.h-pct.ai   {color:var(--red)} .h-pct.human{color:var(--green)} .h-pct.mixed{color:var(--amber)}
+.h-info{flex:1;min-width:0}
+.h-prev{font-size:12px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-meta{font-size:11px;color:var(--t3);margin-top:2px}
+.hist-empty{padding:20px 18px;font-size:13px;color:var(--t3)}
 
-/* GLOBAL TOOLTIP (fixed) */
+/* TOOLTIP */
 #tip{
-  position:fixed;z-index:999;pointer-events:none;
-  background:var(--bg3);border:1px solid var(--border3);
-  padding:7px 12px;font-size:11px;color:var(--text);
-  max-width:240px;line-height:1.5;
-  display:none;
+  position:fixed;z-index:999;pointer-events:none;display:none;
+  background:var(--s3);border:1px solid var(--b2);border-radius:6px;
+  padding:8px 12px;font-size:12px;color:var(--t1);max-width:240px;line-height:1.5;
+  box-shadow:0 4px 20px rgba(0,0,0,.4);
 }
 #tip.on{display:block}
 
 /* FOOTER */
 footer{
-  border-top:1px solid var(--border);
-  padding:14px 20px;
-  font-size:10px;color:var(--muted2);
-  text-align:center;line-height:1.6;margin-top:40px;
-  background:var(--bg1);
+  margin-top:48px;padding:18px 24px;border-top:1px solid var(--b1);
+  font-size:12px;color:var(--t3);text-align:center;line-height:1.6;
 }
-footer a{color:var(--muted);text-decoration:none}
-footer a:hover{color:var(--text)}
+footer a{color:var(--t2);text-decoration:none}
+footer a:hover{color:var(--t1)}
 
-/* ── RESPONSIVE ── */
+/* RESPONSIVE */
 @media(max-width:640px){
-  .wrap{padding:16px 12px 60px}
-  .topbar{padding:0 12px}
-  .verdict-card{grid-template-columns:1fr;grid-template-rows:auto auto auto}
-  .v-pct-wrap{border-right:none;border-bottom:1px solid var(--border);padding:20px}
-  .v-pct{font-size:44px}
-  .v-actions{border-left:none;border-top:1px solid var(--border);flex-direction:row;justify-content:flex-start}
+  .wrap{padding:20px 14px 60px}
+  .topbar{padding:0 14px}
+  .verdict-main{grid-template-columns:1fr}
+  .v-score{border-right:none;border-bottom:1px solid var(--b1);padding:20px}
+  .v-num{font-size:44px}
+  .v-actions{border-left:none;border-top:1px solid var(--b1);flex-direction:row;padding:14px 18px}
   .feat-grid{grid-template-columns:repeat(2,1fr)}
-  .toast-wrap{right:12px;left:12px;bottom:16px}
+  .toast-stack{right:14px;left:14px;bottom:14px}
   .toast{min-width:0;width:100%}
-  .samples{gap:6px}
+  .page-header h1{font-size:22px}
 }
 </style>
 </head>
 <body>
 
-<!-- GLOBAL TOOLTIP -->
 <div id="tip"></div>
+<div class="toast-stack" id="toasts"></div>
 
-<!-- TOAST CONTAINER -->
-<div class="toast-wrap" id="toastWrap"></div>
+<!-- LOADING OVERLAY -->
+<div id="loadOverlay">
+  <div class="load-spin"></div>
+  <div class="load-label" id="loadLabel">Loading language model…</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="loadBar" style="width:0%"></div></div>
+</div>
 
 <!-- TOPBAR -->
 <nav class="topbar">
-  <div class="topbar-l">
-    <div class="logo">
-      <span class="logo-bracket">[</span>
-      <span class="logo-name">AI</span><span class="logo-acc">_DETECT</span>
-      <span class="logo-bracket">]</span>
-    </div>
-    <span class="ver-tag">v1.0</span>
+  <div class="logo">
+    <span class="logo-dot">●</span>
+    AI Text Detector
   </div>
   <div class="topbar-r">
-    <div class="status-pill">
-      <div class="dot" id="sDot"></div>
-      <span id="sLabel">connecting...</span>
-    </div>
+    <span class="badge">100% In-Browser</span>
     <a class="gh-link" href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-      Source
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
     </a>
   </div>
 </nav>
 
 <div class="wrap">
-
-  <!-- PAGE HEADER -->
   <div class="page-header">
-    <h1>AI-Generated Text <span>Detector</span></h1>
+    <h1>AI-Generated Text <em>Detector</em></h1>
     <p class="page-desc">
       Statistical classifier using 11 linguistic signals — perplexity, burstiness, POS entropy &amp; more.
-      No neural model. CPU-only. Free-tier deployable.
-      &nbsp;<kbd>Ctrl</kbd>+<kbd>Enter</kbd> to analyze &nbsp;·&nbsp; <kbd>Ctrl</kbd>+<kbd>L</kbd> to clear
+      No API. No server. Runs entirely in your browser.
     </p>
+    <div class="page-caps">
+      <span class="cap">Ctrl+Enter → analyze</span>
+      <span class="cap">Ctrl+L → clear</span>
+      <span class="cap">drag &amp; drop .txt</span>
+      <span class="cap">LinearSVC · acc 99.4%</span>
+    </div>
   </div>
 
-  <!-- INPUT PANEL -->
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-label">
-        <i data-lucide="terminal"></i>
-        Input
+  <!-- INPUT -->
+  <div class="card">
+    <div class="ch">
+      <span class="ch-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Input Text
       </span>
-      <div class="ph-right">
-        <span>drag &amp; drop .txt</span>
-        <span>|</span>
-        <span>min 8 words · max 8,000 chars</span>
-      </div>
+      <span class="ch-meta">min 8 words · max 8,000 chars</span>
     </div>
-
-    <!-- SAMPLE PRESETS -->
     <div class="samples">
-      <span class="samples-lbl">Try:</span>
-      <button class="btn-sm" data-sample="ai">
-        <i data-lucide="bot"></i>AI sample
-      </button>
-      <button class="btn-sm" data-sample="human">
-        <i data-lucide="user"></i>Human sample
-      </button>
-      <button class="btn-sm" data-sample="mixed">
-        <i data-lucide="shuffle"></i>Mixed
-      </button>
+      <span class="slabel">Try a sample:</span>
+      <button class="sbtn" data-sample="ai">🤖 AI-written</button>
+      <button class="sbtn" data-sample="human">✍️ Human-written</button>
+      <button class="sbtn" data-sample="mixed">🔀 Mixed</button>
     </div>
-
-    <!-- COLD START BANNER -->
-    <div class="cold" id="coldBanner">
-      <i data-lucide="zap" style="width:13px;height:13px;color:var(--amber)"></i>
-      <span>Cold start — service is waking up. Takes 20–40s on free tier.</span>
-      <div class="cold-bar-wrap"><div class="cold-bar" id="coldBar"></div></div>
-    </div>
-
-    <!-- TEXTAREA -->
     <div class="ta-wrap" id="taWrap">
-      <div class="drag-overlay" id="dragOverlay">
-        <i data-lucide="upload" style="margin-right:8px"></i>
-        Drop .txt file to load
+      <div class="drag-ol" id="dragOl">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        Drop .txt file here
       </div>
-      <textarea
-        id="input"
-        placeholder="Paste text here to analyze…&#10;Supports drag &amp; drop of .txt files."
-      ></textarea>
+      <textarea id="txtIn" placeholder="Paste text here to analyze…&#10;&#10;Works best with 3+ sentences."></textarea>
     </div>
-
-    <!-- INPUT FOOTER -->
-    <div class="input-foot">
+    <div class="ifoot">
       <div class="counters">
-        <span class="char-count" id="charCount">0 / 8,000</span>
-        <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
-        <span class="word-count" id="wordCount">0 words</span>
+        <span class="ccount" id="ccount">0 / 8,000</span>
+        <div class="prog-wrap"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+        <span class="wcount" id="wcount">0 words</span>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn-ghost" id="clearBtn">
-          <i data-lucide="x"></i>Clear
+        <button class="btn btn-ghost btn-sm" id="clearBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Clear
         </button>
-        <button class="btn-primary" id="analyzeBtn">
-          <i data-lucide="scan-text"></i>Analyze
+        <button class="btn btn-primary" id="analyzeBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Analyze
         </button>
       </div>
     </div>
-  </div><!-- /input panel -->
+  </div>
 
   <!-- RESULTS -->
   <div id="results">
-
-    <!-- VERDICT -->
     <div class="verdict-card">
-      <div class="v-pct-wrap scanline">
-        <div class="v-pct" id="vPct">—</div>
-        <div class="v-pct-sub">AI probability</div>
-      </div>
-      <div class="v-info">
-        <div class="v-label" id="vLabel">—</div>
-        <div class="v-sub" id="vSub">Run analysis to see verdict</div>
-        <div class="conf-row">
-          <span>Confidence</span>
-          <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
-          <span class="conf-pct" id="confPct">—</span>
+      <div class="verdict-main">
+        <div class="v-score">
+          <div class="v-num" id="vNum">—</div>
+          <div class="v-score-lbl">AI probability</div>
         </div>
-        <div class="conf-row" id="modelBadge" style="margin-top:2px;color:var(--muted2)"></div>
+        <div class="v-body">
+          <div class="v-verdict" id="vVerdict">—</div>
+          <div class="v-sub" id="vSub">—</div>
+          <div class="conf-row">
+            <span class="conf-lbl">Confidence</span>
+            <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+            <span class="conf-val" id="confVal">—</span>
+          </div>
+          <div class="model-badge" id="modelBadge"></div>
+        </div>
+        <div class="v-actions">
+          <button class="btn btn-sm" id="copyBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+          <button class="btn btn-sm" id="exportBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+        </div>
       </div>
-      <div class="v-actions">
-        <button id="copyBtn" title="Copy results to clipboard">
-          <i data-lucide="copy"></i>Copy
-        </button>
-        <button id="exportBtn" title="Export raw JSON">
-          <i data-lucide="download"></i>JSON
-        </button>
+      <div class="gauge-wrap">
+        <span class="g-lbl">HUMAN</span>
+        <div class="g-track">
+          <div class="g-green" id="gaugeG"></div>
+          <div class="g-red"   id="gaugeR"></div>
+          <div class="g-needle" id="gaugeN" style="left:50%"></div>
+        </div>
+        <span class="g-lbl">AI</span>
       </div>
     </div>
 
-    <!-- GAUGE -->
-    <div class="gauge-row">
-      <span>Human</span>
-      <div class="gauge-track">
-        <div class="gauge-h" id="gaugeH"></div>
-        <div class="gauge-a" id="gaugeA"></div>
-        <div class="gauge-needle" id="gaugeN" style="left:50%"></div>
-      </div>
-      <span>AI</span>
-    </div>
-
-    <!-- SENTENCE BREAKDOWN -->
-    <div class="panel">
-      <div class="ph">
-        <span class="ph-label"><i data-lucide="list"></i>Sentence Breakdown</span>
-        <span class="ph-right">click sentence for score</span>
+    <!-- SENTENCES -->
+    <div class="card">
+      <div class="ch">
+        <span class="ch-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Sentence Breakdown
+        </span>
+        <span class="ch-meta">click sentence for score</span>
       </div>
       <div class="annotated" id="annotated"></div>
-      <div class="legend">
-        <div class="leg-i"><span class="swatch" style="background:rgba(255,59,48,.2)"></span>High AI &gt;60%</div>
-        <div class="leg-i"><span class="swatch" style="background:rgba(255,184,0,.15)"></span>Moderate 35–60%</div>
-        <div class="leg-i"><span class="swatch" style="background:rgba(226,226,226,.12)"></span>Likely human &lt;35%</div>
+      <div class="legend-row">
+        <div class="leg"><span class="swatch" style="background:rgba(239,68,68,.2)"></span>High AI &gt;60%</div>
+        <div class="leg"><span class="swatch" style="background:rgba(245,158,11,.18)"></span>Moderate 35–60%</div>
+        <div class="leg"><span class="swatch" style="background:var(--s3)"></span>Likely human &lt;35%</div>
       </div>
     </div>
 
-    <!-- DIAGNOSTIC READOUT -->
-    <div class="panel" style="margin-top:2px">
-      <div class="ph">
-        <span class="ph-label"><i data-lucide="cpu"></i>Diagnostic Readout</span>
-        <span class="ph-right">hover for explanation</span>
+    <!-- DIAGNOSTICS -->
+    <div class="card">
+      <div class="ch">
+        <span class="ch-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Diagnostic Readout
+        </span>
+        <span class="ch-meta">hover a cell for explanation</span>
       </div>
       <div class="feat-grid" id="featGrid"></div>
-      <div class="model-row" id="modelRow"></div>
+      <div class="model-row">
+        <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">LinearSVC (Platt)</div></div>
+        <div class="mstat"><div class="mstat-l">Test Accuracy</div><div class="mstat-v">99.4%</div></div>
+        <div class="mstat"><div class="mstat-l">Test AUC</div><div class="mstat-v">1.000</div></div>
+        <div class="mstat"><div class="mstat-l">Features</div><div class="mstat-v">11</div></div>
+        <div class="mstat"><div class="mstat-l">Inference</div><div class="mstat-v">In-browser · ~10ms</div></div>
+      </div>
     </div>
 
     <!-- HISTORY -->
-    <div class="panel" style="margin-top:2px">
-      <div class="ph">
-        <span class="ph-label"><i data-lucide="clock"></i>History</span>
-        <button class="btn-sm btn-ghost" id="clearHistBtn">
-          <i data-lucide="trash-2"></i>Clear
+    <div class="card">
+      <div class="ch">
+        <span class="ch-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </span>
+        <button class="btn btn-sm btn-ghost" id="clearHistBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Clear
         </button>
       </div>
       <div id="histList"></div>
     </div>
-
-  </div><!-- /results -->
-</div><!-- /wrap -->
+  </div>
+</div>
 
 <footer>
-  Statistical-feature classifier · not a certainty score · trained on a starter dataset ·
-  <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">methodology &amp; source</a>
-  &nbsp;·&nbsp; built with FastAPI + plain HTML · deployed on Render + Vercel
+  Statistical classifier · runs 100% in-browser · no data leaves your device ·
+  <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">source &amp; methodology</a>
 </footer>
 
 <script>
-// ── CONFIG ───────────────────────────────────────────────────────────────────
-const API   = window.AI_DETECTOR_API_BASE || 'https://sugum4r4n-ai-content-detector.hf.space';
-const MAX_C = 8000;
-const HIST_KEY = 'aidet_h';
+// ══════════════════════════════════════════════════════
+//  MODEL WEIGHTS (exported from trained LinearSVC)
+// ══════════════════════════════════════════════════════
+const MODEL = {
+  featureNames: ['perplexity','burstiness','type_token_ratio','avg_sentence_length','sentence_length_variance','avg_word_length','stopword_ratio','punctuation_density','repetition_score','pos_entropy','readability'],
+  scalerMean:   [13090.426236,5372.342389,0.762804583,20.234597,6.774194,5.486347,0.395729,0.024675,0.030672,3.601180,31.702041],
+  scalerStd:    [6286.855651,3077.529483,0.076126376,8.386350,6.032521,1.036434,0.094700,0.008805,0.031903,0.231116,34.882178],
+  calibrated: [
+    {coef:[-0.559911,-0.153914,-0.259106,-0.994933,-2.004380,1.136561,-1.397860,-0.124994,-0.110790,0.624051,-0.744921],intercept:-1.065241,cal_a:-1.562768,cal_b:-0.522262},
+    {coef:[-0.525798,-0.177918,-0.445426,-1.196635,-1.633156,1.226015,-1.574448,0.001079,0.029658,0.639160,-0.790187],intercept:-0.971031,cal_a:-1.413992,cal_b:-0.396775},
+    {coef:[-0.537990,-0.324551,-0.491179,-1.201585,-1.986856,1.338103,-1.487469,0.028942,-0.285556,0.514853,-0.758273],intercept:-1.027673,cal_a:-1.460194,cal_b:-0.089072},
+    {coef:[-0.020688,-0.291324,-0.157984,-1.055647,-1.985113,1.508054,-1.046108,-0.256981,0.092667,0.542522,-0.334196],intercept:-0.850580,cal_a:-1.491964,cal_b:0.039115},
+    {coef:[-0.662179,-0.218180,-0.240945,-1.153444,-1.971728,1.174067,-1.361904,-0.050571,-0.055552,0.624712,-1.011498],intercept:-1.080352,cal_a:-1.350481,cal_b:-0.625781},
+  ],
+};
 
-// ── SAMPLES ──────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+//  ENGLISH STOPWORDS
+// ══════════════════════════════════════════════════════
+const STOPWORDS = new Set(['i','me','my','myself','we','our','ours','ourselves','you',"you're","you've","you'll","you'd",'your','yours','yourself','yourselves','he','him','his','himself','she',"she's",'her','hers','herself','it',"it's",'its','itself','they','them','their','theirs','themselves','what','which','who','whom','this','that',"that'll",'these','those','am','is','are','was','were','be','been','being','have','has','had','having','do','does','did','doing','a','an','the','and','but','if','or','because','as','until','while','of','at','by','for','with','about','against','between','into','through','during','before','after','above','below','to','from','up','down','in','out','on','off','over','under','again','further','then','once','here','there','when','where','why','how','all','both','each','few','more','most','other','some','such','no','nor','not','only','own','same','so','than','too','very','s','t','can','will','just','don',"don't",'should',"should've",'now','d','ll','m','o','re','ve','y','ain','aren',"aren't",'couldn',"couldn't",'didn',"didn't",'doesn',"doesn't",'hadn',"hadn't",'hasn',"hasn't",'haven',"haven't",'isn',"isn't",'ma','mightn',"mightn't",'mustn',"mustn't",'needn',"needn't",'shan',"shan't",'shouldn',"shouldn't",'wasn',"wasn't",'weren',"weren't",'won',"won't",'wouldn',"wouldn't"]);
+
+// ══════════════════════════════════════════════════════
+//  BIGRAM LM (loaded from lm.json)
+// ══════════════════════════════════════════════════════
+let LM = null; // { v: vocabSize, u: {word: count}, b: {w1: {w2: count}} }
+
+// ══════════════════════════════════════════════════════
+//  SAMPLES
+// ══════════════════════════════════════════════════════
 const SAMPLES = {
   ai: `Large language models have revolutionized the field of natural language processing in recent years. These sophisticated systems leverage transformer architectures to generate coherent and contextually relevant text across a wide variety of domains. The implications for various industries are profound and far-reaching. Organizations are increasingly adopting these technologies to enhance productivity and streamline their operations. Furthermore, the potential applications continue to expand as ongoing research progresses toward more capable and efficient systems. It is worth noting that while these models demonstrate impressive capabilities, they also present significant challenges related to alignment, interpretability, and responsible deployment.`,
-  human: `I've been trying to fix this bug for three days and honestly I'm losing it. The weird part is it only happens on Tuesdays? Or at least that's what the logs say. My coworker thinks I'm joking but I pulled the timestamps and yeah — Tuesdays. Something to do with the weekly batch job that runs Monday night, probably. Anyway I added extra logging and I think I'm getting close. Will update tomorrow if I figure it out. Also the coffee machine is broken again which is not helping my mental state at all.`,
-  mixed: `Climate change presents one of the most significant challenges of our time, requiring coordinated action across multiple sectors. Scientists have documented rising global temperatures, with recent years ranking among the hottest on record. I've personally noticed how different winters feel now compared to when I was a kid — we used to get proper snowstorms, now it's just grey and wet. The IPCC reports indicate that limiting warming to 1.5°C would require rapid, far-reaching transitions in energy and industry. That's a lot to ask, but what choice do we really have at this point?`,
+  human: `I've been trying to fix this bug for three days and honestly I'm losing my mind. The weird part is it only happens on Tuesdays? Or at least that's what the logs say. My coworker thinks I'm joking but I pulled the timestamps — yeah, Tuesdays. Something to do with the weekly batch job that runs Monday night I think. Anyway I added extra logging and I think I'm getting close. Will update tomorrow if I figure it out. Also the coffee machine is broken again which is not helping my mental state at all.`,
+  mixed: `Climate change presents one of the most significant challenges of our time, requiring coordinated action across multiple sectors. Scientists have documented rising global temperatures, with recent years ranking among the hottest on record. I've personally noticed how different winters feel compared to when I was a kid — we used to get proper snowstorms, now it's just grey and wet. The IPCC reports indicate that limiting warming to 1.5°C would require rapid, far-reaching transitions in energy, land use, and industry. That's a lot to ask, but what choice do we really have at this point?`,
 };
 
-// ── FEATURE METADATA ─────────────────────────────────────────────────────────
 const FEAT_META = {
-  perplexity:               { label:'Perplexity',         hint:'How unpredictable word choices are. Low = AI-typical (predictable). Measured via bigram LM.', range:[0,200] },
-  burstiness:               { label:'Burstiness',         hint:'Std-dev of per-sentence perplexity. High = human writing varies more sentence-to-sentence.', range:[0,60] },
-  type_token_ratio:         { label:'Lexical Diversity',  hint:'Unique words ÷ total words. Higher = richer vocabulary. AI often repeats patterns.', range:[0,1] },
-  avg_sentence_length:      { label:'Avg Sent Len',       hint:'Mean words per sentence. AI tends to produce longer, more uniform sentences.', range:[0,40] },
-  sentence_length_variance: { label:'Sent Variance',      hint:'Variation in sentence lengths. Low variance = suspiciously uniform (AI signal).', range:[0,80] },
-  avg_word_length:          { label:'Avg Word Len',       hint:'Mean characters per word. Longer words may indicate formal or AI register.', range:[3,8] },
-  stopword_ratio:           { label:'Stopword Ratio',     hint:'Fraction of common function words. AI may over- or under-use these.', range:[0,0.6] },
-  punctuation_density:      { label:'Punct Density',      hint:'Punctuation marks per character. Deviations from human norms are an AI signal.', range:[0,0.08] },
-  repetition_score:         { label:'Repetition',         hint:'Fraction of repeated word bigrams. Higher = more repetitive phrasing.', range:[0,0.4] },
-  pos_entropy:              { label:'POS Entropy',        hint:'Part-of-speech distribution entropy. Low = grammatically uniform text (AI-typical).', range:[0,4] },
-  readability:              { label:'Readability',        hint:'Flesch Reading Ease (0–100). AI tends toward mid-range. Very high/low = human signal.', range:[-20,100] },
+  perplexity:               {label:'Perplexity',        desc:'How unpredictable word choices are vs. a reference English model. AI text tends to be lower (more predictable).',range:[0,200]},
+  burstiness:               {label:'Burstiness',        desc:'Std-dev of per-sentence perplexity. Human writing varies more sentence-to-sentence; AI is uniformly predictable.',range:[0,60]},
+  type_token_ratio:         {label:'Lexical Diversity', desc:'Unique words ÷ total words. Higher = richer vocabulary. AI often reuses the same patterns and phrases.',range:[0,1]},
+  avg_sentence_length:      {label:'Avg Sent Length',   desc:'Mean words per sentence. AI tends to produce longer, more uniform sentences.',range:[0,40]},
+  sentence_length_variance: {label:'Sent Variance',     desc:'Variation in sentence lengths. Very low variance is a strong AI signal — human writing is naturally irregular.',range:[0,80]},
+  avg_word_length:          {label:'Avg Word Length',   desc:'Mean characters per word. Longer words may indicate a formal register common in AI output.',range:[3,8]},
+  stopword_ratio:           {label:'Stopword Ratio',    desc:'Fraction of common function words (the, a, in…). AI often deviates from typical human stopword usage.',range:[0,0.6]},
+  punctuation_density:      {label:'Punct Density',     desc:'Punctuation marks per character. AI tends to over- or under-punctuate in detectable patterns.',range:[0,0.08]},
+  repetition_score:         {label:'Repetition',        desc:'Fraction of repeated word bigrams. Higher = more repetitive phrasing — a common AI pattern.',range:[0,0.4]},
+  pos_entropy:              {label:'POS Entropy',       desc:'Part-of-speech distribution entropy. Low entropy = grammatically uniform text, common in AI output.',range:[0,4]},
+  readability:              {label:'Readability',       desc:'Flesch Reading Ease (0–100). AI tends toward mid-range scores; extreme values (very high/low) signal human writing.',range:[-20,100]},
 };
 
-// ── DOM ───────────────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const inputEl    = $('input');
-const analyzeBtn = $('analyzeBtn');
-const clearBtn   = $('clearBtn');
-const charCount  = $('charCount');
-const wordCount  = $('wordCount');
-const progFill   = $('progFill');
-const coldBanner = $('coldBanner');
-const results    = $('results');
-const tip        = $('tip');
+// ══════════════════════════════════════════════════════
+//  FEATURE EXTRACTION
+// ══════════════════════════════════════════════════════
 
-let lastResult   = null;
-let coldTimer    = null;
-let animFrame    = null;
-
-// ── LUCIDE INIT ───────────────────────────────────────────────────────────────
-function initIcons(){ if(window.lucide) lucide.createIcons(); }
-initIcons();
-
-// ── TOAST ─────────────────────────────────────────────────────────────────────
-function toast(msg, type='error', dur=4000){
-  const wrap = $('toastWrap');
-  const t = document.createElement('div');
-  const icons = {error:'alert-circle',success:'check-circle',warn:'zap',info:'info'};
-  t.className = `toast ${type}`;
-  t.innerHTML = `<svg width="13" height="13" data-lucide="${icons[type]||'info'}"></svg><span>${msg}</span>`;
-  wrap.appendChild(t);
-  if(window.lucide) lucide.createIcons({nodes:[t]});
-  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ t.classList.add('in'); }); });
-  setTimeout(()=>{
-    t.classList.remove('in');
-    setTimeout(()=>t.remove(), 300);
-  }, dur);
+function tokenize(text) {
+  return text.toLowerCase().match(/[a-z']+/g) || [];
 }
 
-// ── STATUS ────────────────────────────────────────────────────────────────────
-async function checkStatus(){
-  const dot = $('sDot'), lbl = $('sLabel');
-  dot.className='dot loading'; lbl.textContent='connecting...';
-  try{
-    const r = await fetch(`${API}/health`, {signal:AbortSignal.timeout(9000)});
-    if(r.ok){ dot.className='dot online'; lbl.textContent='online'; fetchModelInfo(); }
-    else throw new Error();
-  } catch {
-    dot.className='dot error'; lbl.textContent='offline';
+function sentencize(text) {
+  // Split on sentence-ending punctuation followed by space + capital
+  const raw = text.split(/(?<=[.!?])\s+(?=[A-Z"'])/);
+  return raw.map(s => s.trim()).filter(s => s.length > 0);
+}
+
+function stdev(arr) {
+  if (arr.length < 2) return 0;
+  const mean = arr.reduce((a,b) => a+b, 0) / arr.length;
+  const variance = arr.reduce((s,v) => s + (v-mean)**2, 0) / (arr.length - 1);
+  return Math.sqrt(variance);
+}
+
+// Bigram LM perplexity (Laplace smoothed, matching Python implementation)
+function bigramLogProb(prev, cur) {
+  const prevCount  = LM.u[prev]  || 0;
+  const pairCount  = (LM.b[prev] || {})[cur] || 0;
+  return Math.log((pairCount + 1) / (prevCount + LM.v));
+}
+
+function lmPerplexity(tokens) {
+  if (!tokens.length) return 0;
+  const padded = ['<s>', ...tokens, '</s>'];
+  const n = padded.length - 1;
+  let totalLogProb = 0;
+  for (let i = 0; i < n; i++) {
+    totalLogProb += bigramLogProb(padded[i], padded[i+1]);
   }
+  const avgNegLogProb = -totalLogProb / n;
+  return Math.exp(Math.min(avgNegLogProb, 20));
 }
 
-async function fetchModelInfo(){
-  try{
-    const r = await fetch(`${API}/model-info`, {signal:AbortSignal.timeout(6000)});
-    if(!r.ok) return;
-    const d = await r.json();
-    const row = $('modelRow');
-    const acc = d.test_accuracy ? (d.test_accuracy*100).toFixed(1)+'%' : '—';
-    const auc = d.test_auc ? d.test_auc.toFixed(3) : '—';
-    const fn  = d.feature_names ? d.feature_names.length : '—';
-    row.innerHTML = `
-      <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">${d.model_name||'—'}</div></div>
-      <div class="mstat"><div class="mstat-l">Test Accuracy</div><div class="mstat-v">${acc}</div></div>
-      <div class="mstat"><div class="mstat-l">Test AUC</div><div class="mstat-v">${auc}</div></div>
-      <div class="mstat"><div class="mstat-l">Features</div><div class="mstat-v">${fn}</div></div>
-    `;
-    $('modelBadge').textContent = `${d.model_name||''} · ${fn} features · acc ${acc}`;
-  } catch{}
+// Approximate POS tagging using word-pattern rules
+const DET  = new Set(['the','a','an','this','that','these','those','my','your','his','her','its','our','their','each','every','all','both','few','more','most','other','some','such','no','any','each','which','what','whose','either','neither','several','enough']);
+const PREP = new Set(['in','on','at','to','for','of','with','by','from','up','about','into','through','during','before','after','above','below','between','among','against','along','across','around','behind','beyond','near','over','past','since','toward','under','until','upon','within','without','off','out','down','off']);
+const CONJ = new Set(['and','but','or','nor','for','yet','so','because','although','while','if','when','though','since','unless','until','whereas','wherever','whether','as']);
+const PRON = new Set(['i','me','my','myself','we','us','our','you','your','he','him','his','she','her','they','them','their','it','its','who','whom','what','which','that','this','these','those','everyone','someone','anyone','nobody','somebody','anybody','everybody']);
+const AUX  = new Set(['be','is','are','was','were','been','being','have','has','had','having','do','does','did','will','would','could','should','may','might','shall','must','can','need','dare','ought','used','let','make']);
+
+function approxPOS(word) {
+  const w = word.toLowerCase();
+  if (DET.has(w))  return 'DT';
+  if (PREP.has(w)) return 'IN';
+  if (CONJ.has(w)) return 'CC';
+  if (PRON.has(w)) return 'PRP';
+  if (AUX.has(w))  return 'MD';
+  if (/ly$/.test(w))                     return 'RB';   // adverb
+  if (/(?:ful|less|ous|ive|ic|al|able|ible|ant|ent|ish|like)$/.test(w)) return 'JJ'; // adjective
+  if (/(?:ing)$/.test(w))                return 'VBG';  // gerund/present participle
+  if (/(?:ed|en)$/.test(w))             return 'VBD';  // past tense
+  if (/(?:tion|sion|ment|ness|ity|ism|ist|er|or|ee|ance|ence|age|ure|ary|ery|ory)$/.test(w)) return 'NN'; // noun
+  if (/^[A-Z]/.test(word) && word !== word.toUpperCase()) return 'NNP'; // proper noun
+  if (/(?:s|es)$/.test(w) && w.length > 3) return 'NNS'; // plural noun (rough)
+  return 'NN'; // default: noun
 }
 
-// ── COUNTERS ──────────────────────────────────────────────────────────────────
-inputEl.addEventListener('input', updateCounters);
-function updateCounters(){
-  const len   = inputEl.value.length;
-  const words = inputEl.value.trim().split(/\s+/).filter(Boolean).length;
-  const pct   = Math.min(len/MAX_C*100,100);
-  charCount.textContent = `${len.toLocaleString()} / ${MAX_C.toLocaleString()}`;
-  wordCount.textContent = `${words} word${words===1?'':'s'}`;
-  progFill.style.width  = pct+'%';
-  charCount.className   = len>MAX_C ? 'char-count over' : len>MAX_C*.85 ? 'char-count warn' : 'char-count';
-  progFill.style.background = len>MAX_C ? 'var(--red)' : len>MAX_C*.85 ? 'var(--amber)' : 'var(--green)';
+function countSyllables(word) {
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (!w) return 0;
+  const vowels = 'aeiouy';
+  let count = 0, prevVowel = false;
+  for (const ch of w) {
+    const isVowel = vowels.includes(ch);
+    if (isVowel && !prevVowel) count++;
+    prevVowel = isVowel;
+  }
+  if (w.endsWith('e') && count > 1) count--;
+  return Math.max(count, 1);
 }
 
-// ── SAMPLES ───────────────────────────────────────────────────────────────────
-document.querySelectorAll('[data-sample]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    inputEl.value = SAMPLES[btn.dataset.sample];
-    updateCounters();
-    inputEl.focus();
+function fleschReadingEase(words, sentences) {
+  const nWords = Math.max(words.length, 1);
+  const nSents = Math.max(sentences.length, 1);
+  const nSyl   = words.reduce((s, w) => s + countSyllables(w), 0) || 1;
+  return 206.835 - 1.015 * (nWords / nSents) - 84.6 * (nSyl / nWords);
+}
+
+function extractFeatures(text) {
+  const sentences  = sentencize(text);
+  const allTokens  = tokenize(text);
+  const alphaWords = text.match(/\b[a-zA-Z']+\b/g) || [];
+  const lowerWords = alphaWords.map(w => w.toLowerCase());
+
+  const nWords = Math.max(lowerWords.length, 1);
+  const nSents = Math.max(sentences.length, 1);
+
+  // Perplexity & burstiness
+  const sentPpls = sentences.map(s => lmPerplexity(tokenize(s))).filter(p => p > 0);
+  const docPpl   = lmPerplexity(allTokens);
+  const burstiness = stdev(sentPpls);
+
+  // Lexical diversity
+  const ttr = new Set(lowerWords).size / nWords;
+
+  // Sentence lengths
+  const sentLens = sentences.map(s => (s.match(/\b[a-zA-Z']+\b/g) || []).length);
+  const avgSentLen = sentLens.reduce((a,b)=>a+b,0) / nSents;
+  const sentLenVar = stdev(sentLens);
+
+  // Word-level
+  const avgWordLen = lowerWords.reduce((s,w)=>s+w.length,0) / nWords;
+  const swRatio    = lowerWords.filter(w => STOPWORDS.has(w)).length / nWords;
+
+  // Punctuation density
+  const punctCount = (text.match(/[,.;:!?\-—]/g) || []).length;
+  const punctDensity = punctCount / Math.max(text.length, 1);
+
+  // Repetition (word bigram overlap)
+  const bigrams = [];
+  for (let i = 0; i < lowerWords.length - 1; i++) bigrams.push(lowerWords[i]+'|'+lowerWords[i+1]);
+  const repetition = bigrams.length > 1 ? 1 - (new Set(bigrams).size / bigrams.length) : 0;
+
+  // POS entropy
+  let posEntropy = 0;
+  if (alphaWords.length) {
+    const tagCounts = {};
+    alphaWords.forEach(w => { const t = approxPOS(w); tagCounts[t] = (tagCounts[t]||0)+1; });
+    const total = Object.values(tagCounts).reduce((a,b)=>a+b,0);
+    posEntropy = -Object.values(tagCounts).reduce((s,c) => {
+      const p = c/total; return s + p * Math.log2(p);
+    }, 0);
+  }
+
+  // Readability
+  const readability = fleschReadingEase(lowerWords, sentences);
+
+  return {
+    perplexity:               Math.round(docPpl * 100) / 100,
+    burstiness:               Math.round(burstiness * 100) / 100,
+    type_token_ratio:         Math.round(ttr * 10000) / 10000,
+    avg_sentence_length:      Math.round(avgSentLen * 100) / 100,
+    sentence_length_variance: Math.round(sentLenVar * 100) / 100,
+    avg_word_length:          Math.round(avgWordLen * 100) / 100,
+    stopword_ratio:           Math.round(swRatio * 10000) / 10000,
+    punctuation_density:      Math.round(punctDensity * 10000) / 10000,
+    repetition_score:         Math.round(repetition * 10000) / 10000,
+    pos_entropy:              Math.round(posEntropy * 10000) / 10000,
+    readability:              Math.round(readability * 100) / 100,
+    n_words:                  lowerWords.length,
+    n_sentences:              sentences.length,
+  };
+}
+
+// ══════════════════════════════════════════════════════
+//  CLASSIFIER: LinearSVC + Platt calibration ensemble
+// ══════════════════════════════════════════════════════
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+function predict(feats) {
+  // Standardize
+  const vec = MODEL.featureNames.map((name, i) =>
+    (feats[name] - MODEL.scalerMean[i]) / MODEL.scalerStd[i]
+  );
+
+  // Average probabilities from 5 calibrated classifiers
+  let probSum = 0;
+  for (const cal of MODEL.calibrated) {
+    const decision = cal.coef.reduce((s, w, i) => s + w * vec[i], cal.intercept);
+    // Platt sigmoid calibration: P(y=1) = sigmoid(a * decision + b)
+    const prob = sigmoid(cal.cal_a * decision + cal.cal_b);
+    probSum += prob;
+  }
+  const aiProb = probSum / MODEL.calibrated.length;
+
+  // Classes: 0 = human, 1 = AI (from model.classes_)
+  const label = aiProb >= 0.6 ? 'likely_ai' : aiProb <= 0.4 ? 'likely_human' : 'mixed';
+  const confidence = Math.abs(aiProb - 0.5) * 2; // 0..1
+
+  return { ai_probability: aiProb, label, confidence };
+}
+
+// Per-sentence AI probability (uses same classifier, single sentence features)
+function predictSentences(sentences) {
+  return sentences.map(text => {
+    const feats = extractFeatures(text);
+    const { ai_probability } = predict(feats);
+    return { text, ai_probability };
   });
-});
-
-// ── DRAG & DROP ───────────────────────────────────────────────────────────────
-const taWrap = $('taWrap');
-const dragOverlay = $('dragOverlay');
-
-['dragenter','dragover'].forEach(ev => {
-  taWrap.addEventListener(ev, e => { e.preventDefault(); dragOverlay.classList.add('active'); });
-});
-['dragleave','dragend'].forEach(ev => {
-  taWrap.addEventListener(ev, e => { if(!taWrap.contains(e.relatedTarget)) dragOverlay.classList.remove('active'); });
-});
-taWrap.addEventListener('drop', e => {
-  e.preventDefault();
-  dragOverlay.classList.remove('active');
-  const file = e.dataTransfer?.files?.[0];
-  if(!file) return;
-  if(!file.name.endsWith('.txt')){ toast('Only .txt files are supported.','warn'); return; }
-  const fr = new FileReader();
-  fr.onload = () => { inputEl.value = fr.result.slice(0,9000); updateCounters(); };
-  fr.readAsText(file);
-});
-
-// ── CLEAR ─────────────────────────────────────────────────────────────────────
-clearBtn.addEventListener('click', ()=>{
-  inputEl.value=''; updateCounters();
-  results.style.display='none';
-  lastResult=null;
-});
-
-// ── KEYBOARD ──────────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); runAnalysis(); }
-  if((e.ctrlKey||e.metaKey)&&e.key==='l'){     e.preventDefault(); clearBtn.click(); }
-});
-
-// ── COLD START ────────────────────────────────────────────────────────────────
-function showCold(){
-  coldBanner.classList.add('on');
-  // reset bar animation
-  const bar = $('coldBar');
-  bar.style.animation='none';
-  void bar.offsetWidth;
-  bar.style.animation='coldProg 40s linear forwards';
-}
-function hideCold(){
-  coldBanner.classList.remove('on');
-  if(coldTimer){ clearTimeout(coldTimer); coldTimer=null; }
 }
 
-// ── ANALYZE ───────────────────────────────────────────────────────────────────
-analyzeBtn.addEventListener('click', runAnalysis);
-
-async function runAnalysis(){
-  const text = inputEl.value.trim();
-  hideCold();
-
-  if(!text){ toast('Paste some text first.','warn'); return; }
-  if(text.length>MAX_C){ toast(`Exceeds ${MAX_C.toLocaleString()} character limit.`,'warn'); return; }
-  const wc = text.split(/\s+/).filter(Boolean).length;
-  if(wc<8){ toast('Too short — need at least 8 words (a couple of sentences).','warn'); return; }
-
-  analyzeBtn.disabled=true;
-  analyzeBtn.innerHTML='<span class="spin"></span>Analyzing...';
-
-  coldTimer = setTimeout(showCold, 5000);
-
-  try{
-    const res = await fetch(`${API}/analyze`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text}),
-      signal:AbortSignal.timeout(120000),
-    });
-    hideCold();
-    const data = await res.json();
-    if(!res.ok){ toast(data.detail||`Server error ${res.status}.`,'error'); return; }
-    lastResult = {data, text, ts:Date.now()};
-    renderResults(data);
-    saveHistory(data, text);
-    $('sDot').className='dot online'; $('sLabel').textContent='online';
-  } catch(err){
-    hideCold();
-    const msg = err.name==='TimeoutError'
-      ? 'Timed out. Service may be cold-starting — wait 30s and try again.'
-      : 'Cannot reach the analysis service. Check connection.';
-    toast(msg,'error',6000);
-    $('sDot').className='dot error'; $('sLabel').textContent='offline';
-  } finally {
-    analyzeBtn.disabled=false;
-    analyzeBtn.innerHTML='<svg data-lucide="scan-text"></svg>Analyze';
-    initIcons();
-  }
+// ══════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════
+const ICONS = {
+  err:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+  ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+};
+function toast(msg, type='err', dur=4000) {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = ICONS[type] + `<span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 260); }, dur);
 }
 
-// ── ANIMATED COUNTER ─────────────────────────────────────────────────────────
-function animateNum(el, from, to, dur=600){
-  const start = performance.now();
-  if(animFrame) cancelAnimationFrame(animFrame);
+// ══════════════════════════════════════════════════════
+//  DOM REFS & STATE
+// ══════════════════════════════════════════════════════
+const txtIn = document.getElementById('txtIn');
+let lastResult = null, animRaf = null;
+
+// ── COUNTERS ─────────────────────────────────────────
+txtIn.addEventListener('input', updateCounters);
+function updateCounters() {
+  const len = txtIn.value.length, words = txtIn.value.trim().split(/\s+/).filter(Boolean).length;
+  const pct = Math.min(len/8000*100, 100);
+  document.getElementById('ccount').textContent = `${len.toLocaleString()} / 8,000`;
+  document.getElementById('ccount').className = len>8000?'ccount over':len>6800?'ccount warn':'ccount';
+  document.getElementById('wcount').textContent = `${words} word${words===1?'':'s'}`;
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progFill').style.background = len>8000?'var(--red)':len>6800?'var(--amber)':'var(--green)';
+}
+
+// ── SAMPLES ──────────────────────────────────────────
+document.querySelectorAll('[data-sample]').forEach(btn => {
+  btn.addEventListener('click', () => { txtIn.value = SAMPLES[btn.dataset.sample]; updateCounters(); txtIn.focus(); });
+});
+
+// ── DRAG & DROP ──────────────────────────────────────
+const taWrap=document.getElementById('taWrap'), dragOl=document.getElementById('dragOl');
+['dragenter','dragover'].forEach(ev=>taWrap.addEventListener(ev,e=>{e.preventDefault();dragOl.classList.add('on')}));
+['dragleave','dragend'].forEach(ev=>taWrap.addEventListener(ev,e=>{if(!taWrap.contains(e.relatedTarget))dragOl.classList.remove('on')}));
+taWrap.addEventListener('drop',e=>{
+  e.preventDefault(); dragOl.classList.remove('on');
+  const f=e.dataTransfer?.files?.[0];
+  if(!f){return}
+  if(!f.name.endsWith('.txt')){toast('Only .txt files supported.','warn');return}
+  const fr=new FileReader();
+  fr.onload=()=>{txtIn.value=fr.result.slice(0,9000);updateCounters()};
+  fr.readAsText(f);
+});
+
+// ── CLEAR ────────────────────────────────────────────
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  txtIn.value='';updateCounters();
+  document.getElementById('results').style.display='none';lastResult=null;
+});
+
+// ── KEYBOARD ─────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runAnalysis()}
+  if((e.ctrlKey||e.metaKey)&&e.key==='l'){e.preventDefault();document.getElementById('clearBtn').click()}
+});
+
+// ── ANIMATE NUMBER ───────────────────────────────────
+function animNum(el, to, dur=600) {
+  const from=parseInt(el.textContent)||0;
+  const t0=performance.now();
+  if(animRaf) cancelAnimationFrame(animRaf);
   function step(now){
-    const t = Math.min((now-start)/dur, 1);
-    const ease = 1-Math.pow(1-t,3);
-    el.textContent = Math.round(from+(to-from)*ease)+'%';
-    if(t<1) animFrame=requestAnimationFrame(step);
+    const p=Math.min((now-t0)/dur,1), e=1-Math.pow(1-p,3);
+    el.textContent=Math.round(from+(to-from)*e)+'%';
+    if(p<1) animRaf=requestAnimationFrame(step);
   }
-  animFrame=requestAnimationFrame(step);
+  animRaf=requestAnimationFrame(step);
 }
 
-// ── RENDER RESULTS ────────────────────────────────────────────────────────────
-function renderResults(data){
-  const pct = Math.round(data.ai_probability*100);
-  const cls = data.label==='likely_ai' ? 'ai' : data.label==='likely_human' ? 'human' : 'mixed';
-  const LBL = {likely_ai:'Likely AI-Generated', likely_human:'Likely Human-Written', mixed:'Mixed / Uncertain'};
+// ── ANALYZE ──────────────────────────────────────────
+document.getElementById('analyzeBtn').addEventListener('click', runAnalysis);
 
-  // Verdict
-  const vPct = $('vPct');
-  const prev = parseInt(vPct.textContent)||0;
-  vPct.className=`v-pct ${cls}`;
-  animateNum(vPct, prev, pct);
+function runAnalysis() {
+  if (!LM) { toast('Language model still loading, please wait.','warn'); return; }
+  const text = txtIn.value.trim();
+  if (!text) { toast('Paste some text to analyze.','warn'); return; }
+  if (text.length > 8000) { toast('Text exceeds 8,000 character limit.','warn'); return; }
+  if (text.split(/\s+/).filter(Boolean).length < 8) { toast('Too short — need at least 8 words.','warn'); return; }
 
-  $('vLabel').className=`v-label ${cls}`;
-  $('vLabel').textContent=LBL[data.label]||'—';
-  $('vSub').textContent=`${pct}% probability of AI generation`;
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin-sm"></span> Analyzing…';
 
-  const conf=Math.round((data.confidence||0)*100);
-  $('confFill').style.width=conf+'%';
-  $('confFill').style.background = cls==='ai'?'var(--red)':cls==='human'?'var(--green)':'var(--amber)';
-  $('confPct').textContent=conf+'%';
+  // Run in next tick so button updates before blocking computation
+  setTimeout(() => {
+    try {
+      const sentences = sentencize(text);
+      const feats     = extractFeatures(text);
+      const result    = predict(feats);
+      const sentData  = predictSentences(sentences);
 
-  // Gauge
-  $('gaugeH').style.width=(100-pct)+'%';
-  $('gaugeA').style.width=pct+'%';
-  $('gaugeN').style.left=pct+'%';
+      lastResult = { ...result, features: feats, sentences: sentData, text, ts: Date.now() };
+      renderResults(lastResult);
+      saveHistory(lastResult, text);
+    } catch(err) {
+      toast('Analysis failed: ' + err.message, 'err');
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Analyze`;
+    }
+  }, 10);
+}
+
+// ── RENDER ───────────────────────────────────────────
+function renderResults(data) {
+  const pct = Math.round(data.ai_probability * 100);
+  const cls = data.label==='likely_ai'?'ai':data.label==='likely_human'?'human':'mixed';
+  const LABELS = {likely_ai:'Likely AI-Generated', likely_human:'Likely Human-Written', mixed:'Mixed / Uncertain'};
+  const COLORS = {ai:'var(--red)', human:'var(--green)', mixed:'var(--amber)'};
+  const conf = Math.round((data.confidence||0)*100);
+
+  const vNum = document.getElementById('vNum');
+  vNum.className = `v-num ${cls}`;
+  animNum(vNum, pct);
+
+  document.getElementById('vVerdict').textContent = LABELS[data.label]||'—';
+  document.getElementById('vVerdict').className   = `v-verdict ${cls}`;
+  document.getElementById('vSub').textContent     = `${pct}% probability of AI generation`;
+
+  const cf = document.getElementById('confFill');
+  cf.style.width = conf+'%'; cf.style.background = COLORS[cls];
+  document.getElementById('confVal').textContent = conf+'%';
+
+  document.getElementById('gaugeG').style.width = (100-pct)+'%';
+  document.getElementById('gaugeR').style.width = pct+'%';
+  document.getElementById('gaugeN').style.left  = pct+'%';
 
   // Sentences
-  const ann = $('annotated');
-  ann.innerHTML='';
-  (data.sentences||[]).forEach(s=>{
+  const ann = document.getElementById('annotated');
+  ann.innerHTML = '';
+  (data.sentences||[]).forEach(s => {
     const p = Math.round(s.ai_probability*100);
     const tier = p>=60?'high':p>=35?'med':'low';
     const sp = document.createElement('span');
-    sp.className=`sent ${tier}`;
-    sp.textContent=s.text+' ';
-    sp.addEventListener('click', e=>{
-      const msg = `${p}% AI-likely · ${tier==='high'?'High AI likelihood':tier==='med'?'Moderate':'Likely human'}`;
-      toast(msg, tier==='high'?'error':tier==='med'?'warn':'success', 2500);
+    sp.className = `sent ${tier}`;
+    sp.textContent = s.text + ' ';
+    sp.addEventListener('click', ()=>{
+      const t=tier==='high'?'err':tier==='med'?'warn':'ok';
+      toast(`${p}% AI probability — ${tier==='high'?'High AI likelihood':tier==='med'?'Moderate':'Likely human'}`, t, 2500);
     });
     ann.appendChild(sp);
   });
 
   // Features
-  const grid = $('featGrid');
-  grid.innerHTML='';
-  Object.entries(FEAT_META).forEach(([key,meta])=>{
-    if(!(key in data.features)) return;
+  const grid = document.getElementById('featGrid');
+  grid.innerHTML = '';
+  Object.entries(FEAT_META).forEach(([key, meta]) => {
+    if (!(key in data.features)) return;
     const val = data.features[key];
     const [lo,hi] = meta.range;
-    const barPct = Math.min(Math.max((val-lo)/(hi-lo)*100,0),100);
+    const barPct = Math.min(Math.max((val-lo)/(hi-lo)*100, 0), 100);
     const div = document.createElement('div');
-    div.className='feat';
-    div.innerHTML=`
-      <div class="feat-name">${meta.label}</div>
+    div.className = 'feat';
+    div.innerHTML = `
+      <div class="feat-lbl">${meta.label}</div>
       <div class="feat-val">${val}</div>
-      <div class="feat-hint">${meta.hint.split('.')[0]}.</div>
-      <div class="feat-bar-track"><div class="feat-bar-fill" style="width:${barPct}%;background:var(--border3)"></div></div>
+      <div class="feat-bar-t"><div class="feat-bar-f" style="width:${barPct}%"></div></div>
+      <div class="feat-desc">${meta.desc.split('.')[0]}.</div>
     `;
-    div.addEventListener('mouseenter', e => showTip(e, meta.hint));
-    div.addEventListener('mousemove',  e => moveTip(e));
-    div.addEventListener('mouseleave', hideTip);
+    div.addEventListener('mouseenter', e => { document.getElementById('tip').textContent=meta.desc; document.getElementById('tip').className='on'; moveTip(e); });
+    div.addEventListener('mousemove',  moveTip);
+    div.addEventListener('mouseleave', () => { document.getElementById('tip').className=''; });
     grid.appendChild(div);
   });
 
-  // Trigger bar animations
-  setTimeout(()=>{
-    grid.querySelectorAll('.feat-bar-fill').forEach(b=>{
-      b.style.transition='width .6s ease';
-    });
-  },50);
-
-  results.style.display='block';
-  initIcons();
-  results.scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-// ── TOOLTIP ───────────────────────────────────────────────────────────────────
-function showTip(e, text){ tip.textContent=text; tip.className='on'; moveTip(e); }
-function moveTip(e){
-  const x=e.clientX+16, y=e.clientY+16;
-  tip.style.left=Math.min(x,window.innerWidth-260)+'px';
-  tip.style.top=Math.min(y,window.innerHeight-80)+'px';
+function moveTip(e) {
+  const t=document.getElementById('tip');
+  t.style.left=Math.min(e.clientX+16,window.innerWidth-256)+'px';
+  t.style.top =Math.min(e.clientY+16,window.innerHeight-80)+'px';
 }
-function hideTip(){ tip.className=''; }
 
-// ── COPY / EXPORT ─────────────────────────────────────────────────────────────
-$('copyBtn').addEventListener('click', ()=>{
-  if(!lastResult){ toast('Run an analysis first.','warn'); return; }
-  const {data} = lastResult;
-  const pct=Math.round(data.ai_probability*100);
+// ── COPY / EXPORT ────────────────────────────────────
+document.getElementById('copyBtn').addEventListener('click', () => {
+  if(!lastResult){toast('Run an analysis first.','warn');return}
   const LBL={likely_ai:'Likely AI-Generated',likely_human:'Likely Human-Written',mixed:'Mixed / Uncertain'};
   const lines=[
-    'AI-Generated Text Detector — Analysis Report',
-    '─'.repeat(48),
-    `Verdict:    ${LBL[data.label]} (${pct}% AI probability)`,
-    `Confidence: ${Math.round((data.confidence||0)*100)}%`,
-    `Model:      ${data.model_name||'N/A'}`,
+    'AI Text Detector — Analysis Report',
+    '─'.repeat(44),
+    `Verdict:    ${LBL[lastResult.label]} (${Math.round(lastResult.ai_probability*100)}% AI)`,
+    `Confidence: ${Math.round((lastResult.confidence||0)*100)}%`,
+    `Engine:     In-browser LinearSVC · no API`,
     '',
     'Sentence Breakdown:',
-    ...(data.sentences||[]).map(s=>`  [${Math.round(s.ai_probability*100)}%] ${s.text}`),
+    ...(lastResult.sentences||[]).map(s=>`  [${Math.round(s.ai_probability*100)}%] ${s.text}`),
     '',
-    'Diagnostic Features:',
-    ...Object.entries(FEAT_META).map(([k,m])=>`  ${m.label.padEnd(20)} ${data.features[k]??'—'}`),
+    'Features:',
+    ...Object.entries(FEAT_META).map(([k,m])=>`  ${m.label.padEnd(22)} ${lastResult.features[k]??'—'}`),
   ];
-  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
-    toast('Copied to clipboard.','success',2000);
-  });
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>toast('Copied to clipboard.','ok',2000));
 });
 
-$('exportBtn').addEventListener('click', ()=>{
-  if(!lastResult){ toast('Run an analysis first.','warn'); return; }
-  const blob=new Blob([JSON.stringify(lastResult.data,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=`ai-detect-${lastResult.ts}.json`; a.click();
-  URL.revokeObjectURL(url);
-  toast('JSON exported.','success',2000);
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if(!lastResult){toast('Run an analysis first.','warn');return}
+  const blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`ai-detect-${lastResult.ts}.json`; a.click();
+  toast('JSON exported.','ok',2000);
 });
 
-// ── HISTORY ───────────────────────────────────────────────────────────────────
-function loadHist(){ try{ return JSON.parse(sessionStorage.getItem(HIST_KEY))||[]; }catch{ return []; } }
-function saveHist(h){ try{ sessionStorage.setItem(HIST_KEY,JSON.stringify(h)); }catch{} }
+// ── HISTORY ──────────────────────────────────────────
+const HKEY='aidet_h';
+function loadHist(){try{return JSON.parse(sessionStorage.getItem(HKEY))||[]}catch{return[]}}
+function saveHist(h){try{sessionStorage.setItem(HKEY,JSON.stringify(h))}catch{}}
 
-function saveHistory(data, text){
+function saveHistory(data, text) {
   const h=loadHist();
   h.unshift({ai_probability:data.ai_probability,label:data.label,preview:text.slice(0,140),ts:Date.now()});
   saveHist(h.slice(0,10));
   renderHistory();
 }
 
-function renderHistory(){
-  const h=loadHist();
-  const list=$('histList');
-  if(!h.length){ list.innerHTML='<div class="h-empty">No history. Run an analysis.</div>'; return; }
+function renderHistory() {
+  const h=loadHist(), list=document.getElementById('histList');
+  if(!h.length){list.innerHTML='<div class="hist-empty">No history yet. Run an analysis.</div>';return}
   list.innerHTML='';
   h.forEach(item=>{
     const cls=item.label==='likely_ai'?'ai':item.label==='likely_human'?'human':'mixed';
     const LBL={likely_ai:'Likely AI',likely_human:'Likely Human',mixed:'Mixed'};
-    const div=document.createElement('div');
-    div.className='hist-item';
-    div.innerHTML=`
-      <div class="h-pct ${cls}">${Math.round(item.ai_probability*100)}%</div>
-      <div class="h-meta">
-        <div class="h-prev">${esc(item.preview)}${item.preview.length>=140?'…':''}</div>
-        <div class="h-sub"><span>${LBL[item.label]}</span><span>${ago(item.ts)}</span></div>
-      </div>
-    `;
-    div.addEventListener('click',()=>{
-      inputEl.value=item.preview;
-      updateCounters();
-      inputEl.scrollIntoView({behavior:'smooth'});
-      inputEl.focus();
-    });
+    const div=document.createElement('div'); div.className='hist-item';
+    div.innerHTML=`<div class="h-pct ${cls}">${Math.round(item.ai_probability*100)}%</div><div class="h-info"><div class="h-prev">${esc(item.preview)}${item.preview.length>=140?'…':''}</div><div class="h-meta">${LBL[item.label]} · ${ago(item.ts)}</div></div>`;
+    div.addEventListener('click',()=>{txtIn.value=item.preview;updateCounters();txtIn.scrollIntoView({behavior:'smooth'})});
     list.appendChild(div);
   });
 }
 
-$('clearHistBtn').addEventListener('click',()=>{
-  sessionStorage.removeItem(HIST_KEY);
-  renderHistory();
-  toast('History cleared.','info',1500);
+document.getElementById('clearHistBtn').addEventListener('click',()=>{
+  sessionStorage.removeItem(HKEY);renderHistory();toast('History cleared.','info',1500);
 });
 
-function ago(ts){
-  const s=Math.floor((Date.now()-ts)/1000);
-  if(s<60) return 'just now';
-  if(s<3600) return `${Math.floor(s/60)}m ago`;
-  return `${Math.floor(s/3600)}h ago`;
-}
-function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ago(ts){const s=Math.floor((Date.now()-ts)/1000);if(s<60)return'just now';if(s<3600)return`${Math.floor(s/60)}m ago`;return`${Math.floor(s/3600)}h ago`}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
-checkStatus();
+// ══════════════════════════════════════════════════════
+//  STARTUP: Load LM
+// ══════════════════════════════════════════════════════
+async function loadLM() {
+  const overlay = document.getElementById('loadOverlay');
+  const label   = document.getElementById('loadLabel');
+  const bar     = document.getElementById('loadBar');
+
+  label.textContent = 'Loading language model…';
+  bar.style.width   = '10%';
+
+  try {
+    const res = await fetch('./lm.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    bar.style.width = '40%';
+    label.textContent = 'Parsing model data…';
+
+    const text = await res.text();
+    bar.style.width = '75%';
+    label.textContent = 'Initializing…';
+
+    LM = JSON.parse(text);
+    bar.style.width = '100%';
+
+    setTimeout(() => { overlay.classList.add('done'); }, 250);
+  } catch(err) {
+    label.textContent = 'Failed to load lm.json — make sure it is served alongside index.html';
+    label.style.color = 'var(--red)';
+    bar.style.background = 'var(--red)';
+    bar.style.width = '100%';
+    console.error('LM load error:', err);
+  }
+}
+
+loadLM();
 renderHistory();
 </script>
 </body>
