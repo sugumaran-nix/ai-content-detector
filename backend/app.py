@@ -16,24 +16,30 @@ from pydantic import BaseModel, Field
 
 import inference
 
-MAX_CHARS = 8000
+MAX_CHARS = 8_000
+MIN_WORDS = 8
 MODEL_DIR = Path(__file__).parent / "model"
 
+# For production, replace "*" with your actual frontend domain:
+# e.g. ["https://my-portfolio.vercel.app"]
+ALLOWED_ORIGINS = ["*"]
 
-def _ensure_models():
-    """Build reference LM and classifier if pkl files are missing (e.g. first Render deploy)."""
+
+def _ensure_models() -> None:
+    """Build reference LM and classifier if pkl files are missing (cold deploy)."""
     lm_path = MODEL_DIR / "reference_lm.pkl"
     clf_path = MODEL_DIR / "classifier.pkl"
 
     if not lm_path.exists():
-        print("[startup] reference_lm.pkl not found — building from NLTK Brown corpus...")
+        print("[startup] reference_lm.pkl not found — building from NLTK Brown corpus…")
         from reference_lm import build_reference_lm, save_reference_lm
         save_reference_lm(build_reference_lm())
         print("[startup] reference_lm.pkl built.")
 
     if not clf_path.exists():
-        print("[startup] classifier.pkl not found — training classifier...")
-        import train  # noqa: F401 — side-effectful import runs training
+        print("[startup] classifier.pkl not found — training classifier…")
+        from train import main as train_main
+        train_main()
         print("[startup] classifier.pkl trained.")
 
 
@@ -46,21 +52,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI-Generated Text Detector",
-    description="Statistical-feature classifier that estimates whether text was AI-generated.",
-    version="1.0.0",
+    description="Statistical-feature classifier estimating whether text is AI-generated.",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
 class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_CHARS)
+
+
+class AnalyzeResponse(BaseModel):
+    label: str
+    ai_probability: float
+    confidence: float
+    features: dict
+    sentences: list[dict]
+    model_name: str | None = None
 
 
 @app.get("/health")
@@ -72,24 +87,22 @@ def health():
 def model_info():
     bundle = inference.get_bundle()
     return {
-        "model_name":     bundle.get("model_name"),
-        "test_accuracy":  bundle.get("test_accuracy"),
-        "test_auc":       bundle.get("test_auc"),
-        "feature_names":  bundle.get("feature_names"),
+        "model_name":    bundle.get("model_name"),
+        "test_accuracy": bundle.get("test_accuracy"),
+        "test_auc":      bundle.get("test_auc"),
+        "feature_names": bundle.get("feature_names"),
     }
 
 
-@app.post("/analyze")
+@app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest):
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text must not be empty.")
-    if len(text) > MAX_CHARS:
-        raise HTTPException(status_code=400, detail=f"Text exceeds {MAX_CHARS} character limit.")
     word_count = len(text.split())
-    if word_count < 8:
+    if word_count < MIN_WORDS:
         raise HTTPException(
             status_code=400,
-            detail="Text is too short. Provide at least a couple of sentences (8+ words).",
+            detail=f"Text is too short — provide at least {MIN_WORDS} words.",
         )
     return inference.predict_document(text)

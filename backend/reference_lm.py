@@ -32,6 +32,11 @@ LM_FRACTION = 0.7  # fraction of Brown fileids used to build the LM
 
 
 def ensure_nltk_data():
+    import os
+    # Respect NLTK_DATA env var (set in Dockerfile / render.yaml)
+    custom = os.environ.get("NLTK_DATA")
+    if custom and custom not in nltk.data.path:
+        nltk.data.path.insert(0, custom)
     for pkg, path in [
         ("brown", "corpora/brown"),
         ("punkt", "tokenizers/punkt"),

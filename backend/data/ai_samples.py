@@ -1,33 +1,38 @@
 """
 Generates synthetic "AI-style" paragraphs for the starter training corpus.
 
-IMPORTANT / HONEST LIMITATION:
-We have no network access to a real labeled human-vs-AI-text dataset
-(no Hugging Face Hub, no Kaggle, no OpenAI API in this environment), so the
-"AI" class is built from a template-driven generator that reproduces common
-LLM stylistic tells: hedging language, transition-heavy structure, balanced
-"on one hand / on the other hand" framing, listy enumeration, and generic
-intensifiers. This is a reasonable stand-in for demonstrating the feature
-engineering + classifier pipeline, but it is NOT real LLM output. For
-production-grade accuracy, retrain on a real corpus such as the HC3 dataset
-or Kaggle's "LLM - Detect AI Generated Text" competition data (see README).
+HONEST LIMITATION:
+The "AI" class is built from a template-driven generator covering six distinct
+stylistic registers that reproduce real LLM stylistic tells. This is a reasonable
+stand-in for demonstrating the feature pipeline, but NOT real LLM output.
+For production-grade accuracy, retrain on a real corpus such as the HC3 dataset
+or Kaggle's "LLM - Detect AI Generated Text" competition data.
+
+Registers included:
+  1. Hedge/self-help   — "it's important to note", "key takeaways"
+  2. Tech-jargon       — "leverage", "synthesize", "algorithmically"
+  3. Academic          — "this paper examines", "the findings suggest"
+  4. Business/corporate — "actionable insights", "cross-functional alignment"
+  5. Journalistic AI   — balanced "on one hand / on the other" structure
+  6. Listicle          — numbered points, "First,", "Additionally,"
 """
 
 import random
 import re
 
+# ---------------------------------------------------------------------------
+# Contraction randomiser (prevent 100% contraction-presence as a tell)
+# ---------------------------------------------------------------------------
 _CONTRACTION_MAP = {
     "it's": "it is", "that's": "that is", "there's": "there is",
     "don't": "do not", "doesn't": "does not", "isn't": "is not",
     "aren't": "are not", "can't": "cannot", "won't": "will not",
-    "it'll": "it will", "they're": "they are",
+    "it'll": "it will", "they're": "they are", "we're": "we are",
+    "you're": "you are", "I've": "I have", "we've": "we have",
 }
 
 
 def _vary_contractions(text: str, rng: random.Random) -> str:
-    """Randomly expand contractions so contraction-presence isn't a spurious
-    shortcut feature correlated 1:1 with the AI label (every hand-written
-    template originally used contractions like "it's")."""
     if rng.random() < 0.5:
         return text
     for contracted, expanded in _CONTRACTION_MAP.items():
@@ -35,6 +40,9 @@ def _vary_contractions(text: str, rng: random.Random) -> str:
     return text
 
 
+# ---------------------------------------------------------------------------
+# Shared topic pool
+# ---------------------------------------------------------------------------
 TOPICS = [
     "remote work", "climate change", "artificial intelligence", "personal finance",
     "healthy eating", "time management", "electric vehicle adoption", "social media",
@@ -44,153 +52,243 @@ TOPICS = [
     "meditation", "small business marketing", "space exploration", "the vegan diet",
     "productivity software", "public transportation", "cloud computing", "yoga",
     "digital privacy", "career change", "fitness tracking", "remote learning",
-    "the plant-based diet", "smart home technology", "work-life balance", "podcasting",
-    "e-commerce", "water conservation", "team collaboration software",
-    "personal branding", "investment strategy", "stress management",
-    "open source software", "urban planning", "wildlife conservation",
-    "intermittent fasting", "video game design", "supply chain management",
-    "telemedicine", "the co-working space model",
+    "smart home technology", "work-life balance", "podcasting", "e-commerce",
+    "water conservation", "team collaboration software", "personal branding",
+    "investment strategy", "stress management", "open source software",
+    "urban planning", "wildlife conservation", "intermittent fasting",
+    "video game design", "supply chain management", "telemedicine",
+    "blockchain technology", "quantum computing",
 ]
 
-INTROS = [
+# ---------------------------------------------------------------------------
+# Register 1: Hedge / self-help
+# ---------------------------------------------------------------------------
+_HEDGE_INTROS = [
     "In today's fast-paced world, {topic} has become an increasingly important topic for many people.",
-    "When it comes to {topic}, there are several factors worth considering.",
+    "When it comes to {topic}, there are several factors worth considering carefully.",
     "{topic_cap} is a subject that has gained significant attention in recent years.",
     "It's important to note that {topic} can have a meaningful impact on everyday life.",
     "Many experts agree that {topic} plays a crucial role in modern society.",
-    "Over the past decade, {topic} has evolved considerably, shaping how people live and work.",
-    "Understanding {topic} requires looking at it from multiple perspectives.",
-    "As awareness around {topic} continues to grow, more people are looking for practical guidance.",
+    "Understanding {topic} is essential for anyone looking to thrive in today's environment.",
+    "The growing interest in {topic} reflects a broader shift in how people approach daily challenges.",
 ]
-
-BODY_TEMPLATES = [
-    "On one hand, {topic} offers a number of clear benefits. On the other hand, it's worth acknowledging the potential drawbacks as well.",
-    "There are several key factors to consider, including cost, accessibility, and long-term impact.",
-    "Furthermore, it's essential to recognize that individual circumstances can significantly influence outcomes.",
-    "Additionally, experts generally recommend taking a balanced and informed approach.",
-    "That said, it's worth mentioning that results can vary depending on a range of variables.",
-    "In many cases, the benefits tend to outweigh the challenges, provided that certain best practices are followed.",
-    "Moreover, ongoing research continues to shed new light on this evolving area.",
-    "It's also worth noting that consistency and patience are often key to achieving meaningful results.",
+_HEDGE_BODIES = [
     "To put this into perspective, consider the following key points: accessibility, affordability, and overall effectiveness.",
-    "While there is no one-size-fits-all solution, a thoughtful and well-informed strategy can make a significant difference.",
-    "Generally speaking, small, incremental changes tend to be more sustainable than drastic ones.",
+    "On one hand, {topic} offers a number of clear benefits. On the other hand, it's worth acknowledging the potential drawbacks as well.",
     "At the same time, it's crucial to remain mindful of potential limitations and adjust accordingly.",
+    "Research consistently shows that individuals who engage with {topic} report higher levels of satisfaction and well-being.",
+    "By taking a holistic approach, it becomes possible to harness the full potential of {topic} while mitigating associated risks.",
+    "Furthermore, it's worth noting that the impact of {topic} extends far beyond immediate outcomes, influencing long-term trajectories.",
+    "It is also important to recognize that different individuals may experience {topic} differently depending on their unique circumstances.",
 ]
-
-CONCLUSIONS = [
+_HEDGE_OUTROS = [
     "In conclusion, {topic} is a multifaceted subject that deserves careful thought and ongoing attention.",
-    "Overall, taking a balanced, informed approach to {topic} can lead to meaningful, lasting benefits.",
-    "Ultimately, the key to success with {topic} lies in staying informed and adapting to individual needs.",
-    "To summarize, {topic} offers significant potential, provided it is approached thoughtfully and consistently.",
-    "All things considered, {topic} remains a valuable area worth exploring further.",
-]
-
-LIST_INTROS = [
-    "Here are a few key points to keep in mind:",
-    "Consider the following key takeaways:",
-    "A few practical tips can help, such as:",
-]
-
-LIST_ITEMS = [
-    "Start small and build up gradually over time.",
-    "Stay consistent, even when progress feels slow.",
-    "Seek guidance from reputable, well-informed sources.",
-    "Track your progress to stay motivated.",
-    "Be mindful of common pitfalls and plan accordingly.",
-    "Set realistic, achievable goals from the outset.",
+    "Ultimately, the key takeaway is that {topic} requires a balanced and informed perspective.",
+    "Moving forward, it will be essential to continue exploring the evolving landscape of {topic}.",
+    "As our understanding of {topic} continues to grow, so too will our ability to leverage its benefits responsibly.",
+    "The evidence strongly suggests that a proactive and thoughtful approach to {topic} yields the most favorable outcomes.",
 ]
 
 
-TECH_SUBJECTS = [
-    "generative artificial intelligence", "cloud-native infrastructure", "machine learning automation",
-    "blockchain technology", "edge computing", "the Internet of Things", "big data analytics",
-    "natural language processing", "quantum computing", "robotic process automation",
-    "5G connectivity", "digital twin technology", "predictive analytics", "computer vision",
-    "autonomous systems technology", "distributed ledger technology", "real-time data infrastructure",
-    "algorithmic trading", "smart manufacturing", "augmented reality",
+def _hedge_paragraph(topic: str, rng: random.Random) -> str:
+    tc = topic.capitalize()
+    intro = rng.choice(_HEDGE_INTROS).format(topic=topic, topic_cap=tc)
+    bodies = rng.sample(_HEDGE_BODIES, k=rng.randint(2, 4))
+    body = " ".join(b.format(topic=topic, topic_cap=tc) for b in bodies)
+    outro = rng.choice(_HEDGE_OUTROS).format(topic=topic, topic_cap=tc)
+    return f"{intro} {body} {outro}"
+
+
+# ---------------------------------------------------------------------------
+# Register 2: Tech-jargon / corporate AI
+# ---------------------------------------------------------------------------
+_TECH_TEMPLATES = [
+    (
+        "The implementation of {topic} leverages cutting-edge methodologies to synthesize actionable insights "
+        "from complex, multi-dimensional datasets. By algorithmically optimizing the underlying infrastructure, "
+        "organizations can achieve unprecedented levels of operational efficiency. "
+        "The integration of {topic} into existing workflows facilitates seamless scalability, "
+        "enabling stakeholders to derive maximum value from their technology investments. "
+        "Furthermore, the deployment of advanced {topic} solutions necessitates a robust governance framework "
+        "to ensure compliance, security, and long-term sustainability across all verticals."
+    ),
+    (
+        "Harnessing the transformative potential of {topic} requires a paradigm shift in how organizations "
+        "conceptualize and operationalize their strategic objectives. "
+        "The convergence of {topic} with adjacent technological domains creates synergistic opportunities "
+        "that drive innovation and competitive differentiation. "
+        "Stakeholders must proactively align cross-functional teams to orchestrate a cohesive implementation "
+        "roadmap that maximizes return on investment while minimizing disruption to mission-critical processes. "
+        "Ultimately, the strategic adoption of {topic} positions enterprises to capitalize on emerging market dynamics."
+    ),
+    (
+        "From a technical standpoint, {topic} represents a significant advancement in how systems process, "
+        "analyze, and respond to complex inputs. "
+        "The architecture underlying modern {topic} solutions is designed for horizontal scalability, "
+        "fault tolerance, and low-latency throughput. "
+        "By abstracting implementation complexity behind intuitive interfaces, {topic} democratizes access "
+        "to sophisticated capabilities that were previously limited to well-resourced organizations. "
+        "This paradigm shift has profound implications for productivity, automation, and the future of work."
+    ),
 ]
 
-TECH_INTROS = [
-    "The rapid integration of {topic} has fundamentally transformed the global digital landscape, driving unprecedented efficiency in automated workflows.",
-    "Recent advances in {topic} have fundamentally reshaped how organizations process and generate information at scale.",
-    "{topic_cap} represents a paradigm shift in how enterprises leverage data-driven decision-making.",
-    "By leveraging advanced computational frameworks, {topic} has unlocked unprecedented levels of operational efficiency.",
-    "As organizations increasingly adopt {topic}, the resulting transformation is reshaping entire industries at scale.",
+
+def _tech_paragraph(topic: str, rng: random.Random) -> str:
+    template = rng.choice(_TECH_TEMPLATES)
+    return template.format(topic=topic, topic_cap=topic.capitalize())
+
+
+# ---------------------------------------------------------------------------
+# Register 3: Academic / research style
+# ---------------------------------------------------------------------------
+_ACADEMIC_TEMPLATES = [
+    (
+        "This analysis examines the multifaceted dimensions of {topic}, drawing upon a synthesis of "
+        "empirical evidence and theoretical frameworks. "
+        "The findings suggest that {topic} exhibits a complex, non-linear relationship with key outcome variables, "
+        "underscoring the necessity of context-sensitive approaches. "
+        "Methodologically, this study employs a mixed-methods design to triangulate qualitative and quantitative data sources. "
+        "The implications for policy and practice are discussed in relation to existing literature, "
+        "with particular attention to the socioeconomic determinants that mediate the observed effects of {topic}."
+    ),
+    (
+        "Scholarly discourse on {topic} has evolved considerably over the past decade, "
+        "reflecting both advances in empirical methodology and shifts in theoretical orientation. "
+        "A growing body of evidence indicates that {topic} is associated with statistically significant "
+        "improvements in the dependent variables of interest, though effect sizes vary substantially across subgroups. "
+        "Future research should prioritize longitudinal designs capable of establishing temporal precedence "
+        "and ruling out confounding explanations. "
+        "Furthermore, cross-cultural replication studies are needed to assess the generalizability of current findings."
+    ),
 ]
 
-TECH_BODY = [
-    "By utilizing multi-layered architectures, modern systems process extensive datasets to synthesize coherent, contextually accurate outputs within milliseconds.",
-    "This machine-driven execution eliminates the constraints of traditional manual processes, allowing systems to algorithmically optimize outcomes based on predictive probabilities.",
-    "As a result, the boundary between conventional methods and automated solutions continues to dissolve, giving rise to a new era of scalable, high-density information processing.",
-    "Furthermore, the seamless integration of these frameworks enables organizations to optimize resource allocation and drive measurable performance gains.",
-    "This convergence of robust, data-driven methodologies and scalable infrastructure underscores a broader shift toward algorithmic optimization across the industry.",
-    "Consequently, enterprises are increasingly able to leverage these capabilities to unlock new levels of agility, scalability, and operational resilience.",
-    "These systems are engineered to dynamically adapt to evolving requirements, enabling seamless scalability across diverse operational environments.",
+
+def _academic_paragraph(topic: str, rng: random.Random) -> str:
+    template = rng.choice(_ACADEMIC_TEMPLATES)
+    return template.format(topic=topic, topic_cap=topic.capitalize())
+
+
+# ---------------------------------------------------------------------------
+# Register 4: Business / corporate communication
+# ---------------------------------------------------------------------------
+_BUSINESS_TEMPLATES = [
+    (
+        "Organizations that embrace {topic} as a strategic priority are better positioned to achieve "
+        "sustainable competitive advantage in an increasingly dynamic marketplace. "
+        "Key success factors include executive sponsorship, cross-functional alignment, and a commitment "
+        "to continuous improvement through data-driven decision-making. "
+        "To maximize impact, it is recommended that teams establish clear KPIs aligned with organizational objectives "
+        "and implement regular performance reviews to ensure accountability. "
+        "The business case for {topic} is compelling: early adopters consistently report measurable gains "
+        "in efficiency, revenue growth, and customer satisfaction."
+    ),
+    (
+        "A strategic approach to {topic} begins with a comprehensive assessment of current-state capabilities "
+        "and a clear articulation of desired outcomes. "
+        "Stakeholder engagement is critical at every phase of the implementation lifecycle, "
+        "from initial scoping through post-deployment optimization. "
+        "Organizations should allocate sufficient resources to change management, "
+        "recognizing that cultural adoption is as important as technical execution. "
+        "When executed effectively, {topic} initiatives deliver measurable ROI within twelve to eighteen months, "
+        "creating a foundation for continued innovation."
+    ),
 ]
 
-TECH_CONCLUSIONS = [
-    "In this rapidly evolving landscape, {topic} stands as a defining force shaping the future of efficiency and scale.",
-    "As this technology continues to mature, {topic} will likely remain at the forefront of digital transformation.",
-    "Ultimately, the continued evolution of {topic} underscores its central role in driving the next wave of digital innovation.",
+
+def _business_paragraph(topic: str, rng: random.Random) -> str:
+    template = rng.choice(_BUSINESS_TEMPLATES)
+    return template.format(topic=topic, topic_cap=topic.capitalize())
+
+
+# ---------------------------------------------------------------------------
+# Register 5: Journalistic / balanced-analysis style
+# ---------------------------------------------------------------------------
+_JOURNALIST_INTROS = [
+    "The debate surrounding {topic} has intensified in recent months, with experts divided on its long-term implications.",
+    "Proponents of {topic} argue that the benefits far outweigh the risks, while critics maintain a more cautious stance.",
+    "{topic_cap} has emerged as one of the most polarizing topics in contemporary discourse.",
+    "A nuanced examination of {topic} reveals both promising opportunities and significant challenges that warrant careful consideration.",
+]
+_JOURNALIST_BODIES = [
+    "Supporters point to robust empirical evidence demonstrating that {topic} yields measurable improvements across multiple dimensions.",
+    "However, detractors highlight a series of unresolved concerns, including equity, accessibility, and unintended consequences.",
+    "The available data presents a mixed picture: while short-term outcomes are largely positive, the long-term trajectory remains uncertain.",
+    "Policymakers have been slow to respond, in part because the evidence base for {topic} continues to evolve rapidly.",
+    "Independent analysts note that the effectiveness of {topic} is highly dependent on implementation context and stakeholder buy-in.",
+]
+_JOURNALIST_OUTROS = [
+    "What seems clear is that {topic} will continue to shape the conversation for years to come.",
+    "Resolving these tensions will require sustained dialogue, rigorous research, and a willingness to adapt policies as new evidence emerges.",
+    "The coming years will be decisive in determining whether {topic} fulfills its promise or falls short of expectations.",
 ]
 
 
-def generate_ai_paragraph_technical(rng: random.Random) -> str:
-    topic = rng.choice(TECH_SUBJECTS)
-    parts = [_fill(rng.choice(TECH_INTROS), topic)]
-    body_pool = TECH_BODY[:]
-    rng.shuffle(body_pool)
-    for t in body_pool[: rng.randint(2, 4)]:
-        parts.append(t)
-    parts.append(_fill(rng.choice(TECH_CONCLUSIONS), topic))
-    return " ".join(parts)
+def _journalist_paragraph(topic: str, rng: random.Random) -> str:
+    tc = topic.capitalize()
+    intro = rng.choice(_JOURNALIST_INTROS).format(topic=topic, topic_cap=tc)
+    bodies = rng.sample(_JOURNALIST_BODIES, k=rng.randint(2, 3))
+    body = " ".join(b.format(topic=topic) for b in bodies)
+    outro = rng.choice(_JOURNALIST_OUTROS).format(topic=topic)
+    return f"{intro} {body} {outro}"
 
 
-def _fill(template: str, topic: str) -> str:
-    return template.format(topic=topic, topic_cap=topic[0].upper() + topic[1:])
+# ---------------------------------------------------------------------------
+# Register 6: Listicle / structured enumeration
+# ---------------------------------------------------------------------------
+_LISTICLE_INTROS = [
+    "There are several compelling reasons why {topic} deserves your attention.",
+    "Understanding {topic} requires examining it through multiple lenses.",
+    "The following points highlight the most important considerations related to {topic}.",
+    "Experts consistently identify these core principles as central to any meaningful engagement with {topic}.",
+]
+_LISTICLE_POINTS = [
+    "First, {topic} provides a structured framework for addressing challenges that previously lacked clear solutions.",
+    "Second, the scalability of {topic} makes it applicable across a wide range of contexts and organizational sizes.",
+    "Additionally, {topic} fosters collaboration by creating shared vocabulary and common standards among diverse stakeholders.",
+    "Moreover, the evidence base supporting {topic} has grown substantially, lending credibility to its adoption.",
+    "Furthermore, {topic} aligns with broader trends toward sustainability, efficiency, and human-centered design.",
+    "Finally, early adopters of {topic} consistently report positive outcomes that exceed initial projections.",
+]
+_LISTICLE_OUTROS = [
+    "Taken together, these points make a compelling case for prioritizing {topic} in both personal and professional contexts.",
+    "Each of these dimensions reinforces the conclusion that {topic} is not merely a trend but a durable paradigm shift.",
+    "The cumulative weight of this evidence leaves little doubt that {topic} merits serious and sustained attention.",
+]
 
 
-def generate_ai_paragraph(rng: random.Random) -> str:
-    if rng.random() < 0.5:
-        return generate_ai_paragraph_technical(rng)
+def _listicle_paragraph(topic: str, rng: random.Random) -> str:
+    intro = rng.choice(_LISTICLE_INTROS).format(topic=topic)
+    points = rng.sample(_LISTICLE_POINTS, k=rng.randint(3, 5))
+    body = " ".join(p.format(topic=topic) for p in points)
+    outro = rng.choice(_LISTICLE_OUTROS).format(topic=topic)
+    return f"{intro} {body} {outro}"
 
-    topic = rng.choice(TOPICS)
-    parts = [_fill(rng.choice(INTROS), topic)]
 
-    n_body = rng.randint(2, 4)
-    body_pool = BODY_TEMPLATES[:]
-    rng.shuffle(body_pool)
-    for t in body_pool[:n_body]:
-        parts.append(_fill(t, topic))
-
-    if rng.random() < 0.35:
-        parts.append(rng.choice(LIST_INTROS))
-        items = LIST_ITEMS[:]
-        rng.shuffle(items)
-        for item in items[: rng.randint(2, 3)]:
-            parts.append(item)
-
-    parts.append(_fill(rng.choice(CONCLUSIONS), topic))
-    return _vary_contractions(" ".join(parts), rng)
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+_GENERATORS = [
+    _hedge_paragraph,
+    _tech_paragraph,
+    _academic_paragraph,
+    _business_paragraph,
+    _journalist_paragraph,
+    _listicle_paragraph,
+]
 
 
 def generate_ai_paragraphs(n: int, seed: int = 42) -> list[str]:
     rng = random.Random(seed)
-    seen = set()
-    out = []
-    attempts = 0
-    while len(out) < n and attempts < n * 20:
-        attempts += 1
-        p = generate_ai_paragraph(rng)
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
-    return out
-
-
-if __name__ == "__main__":
-    samples = generate_ai_paragraphs(5)
-    for s in samples:
-        print(s)
-        print("---")
+    topics = list(TOPICS)
+    paragraphs = []
+    while len(paragraphs) < n:
+        rng.shuffle(topics)
+        for topic in topics:
+            if len(paragraphs) >= n:
+                break
+            gen = rng.choice(_GENERATORS)
+            text = gen(topic, rng)
+            text = _vary_contractions(text, rng)
+            if len(text.split()) >= 30:
+                paragraphs.append(text)
+    return paragraphs[:n]

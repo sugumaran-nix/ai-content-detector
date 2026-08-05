@@ -1,15 +1,16 @@
 """
 Feature engineering for the AI-text classifier.
 
-Each function below returns a single named feature so the full set can be
+Each function returns a single named feature so the full set can be
 inspected (and surfaced to the frontend) as a transparent "diagnostic
-readout" rather than a black-box score — this mirrors the explainability
-approach used in the fake-job-posting-ml project.
+readout" rather than a black-box score.
 """
 
 import math
 import re
 from collections import Counter
+from statistics import stdev as _stdev
+from typing import Optional
 
 import nltk
 from nltk import pos_tag
@@ -18,10 +19,15 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 
 from reference_lm import BigramLM, load_reference_lm, tokenize as lm_tokenize
 
-_STOPWORDS = None
+_STOPWORDS: Optional[set] = None
 
 
-def ensure_nltk_data():
+def ensure_nltk_data() -> None:
+    import os
+    # Respect NLTK_DATA env var (set in Dockerfile / render.yaml)
+    custom = os.environ.get("NLTK_DATA")
+    if custom and custom not in nltk.data.path:
+        nltk.data.path.insert(0, custom)
     for pkg, path in [
         ("punkt", "tokenizers/punkt"),
         ("punkt_tab", "tokenizers/punkt_tab"),
@@ -35,7 +41,7 @@ def ensure_nltk_data():
             nltk.download(pkg, quiet=True)
 
 
-def _stopwords_set():
+def _stopwords_set() -> set:
     global _STOPWORDS
     if _STOPWORDS is None:
         ensure_nltk_data()
@@ -43,8 +49,15 @@ def _stopwords_set():
     return _STOPWORDS
 
 
+def statistics_stdev(values: list[float]) -> float:
+    """Population-safe standard deviation (requires n >= 2)."""
+    if len(values) < 2:
+        return 0.0
+    return _stdev(values)
+
+
 # Cached reference LM (loaded once per process)
-_LM: BigramLM | None = None
+_LM: Optional[BigramLM] = None
 
 
 def get_lm() -> BigramLM:
@@ -80,7 +93,7 @@ def flesch_reading_ease(words: list[str], sentences: list[str]) -> float:
 
 
 def extract_features(text: str) -> dict:
-    """Document-level (or single-sentence-level) feature extraction."""
+    """Document-level feature extraction. Returns a named-feature dict."""
     ensure_nltk_data()
     lm = get_lm()
     sw = _stopwords_set()
@@ -99,9 +112,7 @@ def extract_features(text: str) -> dict:
         if toks:
             sent_perplexities.append(lm.perplexity(toks))
     doc_perplexity = lm.perplexity(lm_tokenize(text))
-    burstiness = (
-        statistics_stdev(sent_perplexities) if len(sent_perplexities) > 1 else 0.0
-    )
+    burstiness = statistics_stdev(sent_perplexities) if len(sent_perplexities) > 1 else 0.0
 
     # --- Lexical diversity ---
     lower_words = [w.lower() for w in alpha_words]
@@ -113,12 +124,8 @@ def extract_features(text: str) -> dict:
     sent_len_variance = statistics_stdev(sent_lengths) if len(sent_lengths) > 1 else 0.0
 
     # --- Word-level stats ---
-    avg_word_len = (
-        sum(len(w) for w in alpha_words) / n_words if n_words else 0.0
-    )
-    stopword_ratio = (
-        sum(1 for w in lower_words if w in sw) / n_words if n_words else 0.0
-    )
+    avg_word_len = sum(len(w) for w in alpha_words) / n_words if n_words else 0.0
+    stopword_ratio = sum(1 for w in lower_words if w in sw) / n_words if n_words else 0.0
 
     # --- Punctuation density ---
     punct_count = sum(1 for ch in text if ch in ",.;:!?-—")
@@ -170,12 +177,3 @@ FEATURE_NAMES = [
 def feature_vector(text: str) -> list[float]:
     feats = extract_features(text)
     return [feats[name] for name in FEATURE_NAMES]
-
-
-def statistics_stdev(values: list[float]) -> float:
-    n = len(values)
-    if n < 2:
-        return 0.0
-    mean = sum(values) / n
-    var = sum((v - mean) ** 2 for v in values) / (n - 1)
-    return math.sqrt(var)

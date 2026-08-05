@@ -1,121 +1,147 @@
 """
-Trains the AI-vs-human text classifier on the handcrafted feature set.
+train.py — Build and evaluate the AI-text classifier.
 
-Compares Logistic Regression, Random Forest, and Linear SVM (consistent with
-the multi-model comparison approach used in the fake-job-posting-ml project),
-picks the best performer on a held-out test split, and saves the fitted
-scaler + model + feature names for use by the FastAPI inference service.
+Pipeline:
+  1. Build dataset (AI samples + Brown corpus human samples)
+  2. Extract 11 features per document
+  3. Compare LR, RF, LinearSVC via 5-fold stratified CV
+  4. Refit winner on full train set, evaluate on held-out test set
+  5. Serialize (scaler + model + metadata) to model/classifier.pkl
+
+Usage:
+  python train.py
 """
 
-import csv
 import pickle
-import sys
 import time
 from pathlib import Path
 
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import LinearSVC, SVC
 
-sys.path.insert(0, str(Path(__file__).parent))
-from features import FEATURE_NAMES, extract_features  # noqa: E402
+from features import FEATURE_NAMES, feature_vector
 
-DATA_PATH = Path(__file__).parent / "data" / "data.csv"
 MODEL_DIR = Path(__file__).parent / "model"
+DATA_DIR  = Path(__file__).parent / "data"
+
+CANDIDATES = {
+    "LogisticRegression": LogisticRegression(max_iter=1000),
+    "RandomForest":       RandomForestClassifier(n_estimators=200, random_state=42),
+    "LinearSVC":          CalibratedClassifierCV(LinearSVC(max_iter=5000), cv=5),
+}
 
 
-def load_dataset():
-    texts, labels = [], []
-    with open(DATA_PATH, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            texts.append(row["text"])
-            labels.append(int(row["label"]))
+def build_dataset():
+    """Return (texts, labels) where label=1 → AI, label=0 → Human."""
+    print("[data] Generating AI samples…")
+    from data.ai_samples import generate_ai_paragraphs
+    ai_texts = generate_ai_paragraphs(450, seed=42)
+
+    print("[data] Loading human samples from Brown corpus…")
+    import nltk
+    from nltk.corpus import brown
+
+    try:
+        nltk.data.find("corpora/brown")
+    except LookupError:
+        nltk.download("brown", quiet=True)
+
+    # Use 30% of Brown corpus for training, 70% was used to build the LM
+    # to prevent verbatim memorisation bleeding into perplexity signal.
+    sents = brown.sents()
+    n = len(sents)
+    split = int(n * 0.70)
+    human_pool = sents[split:]
+
+    human_texts = []
+    buf = []
+    for sent in human_pool:
+        buf.extend(sent)
+        if len(buf) >= 60:
+            human_texts.append(" ".join(buf))
+            buf = []
+            if len(human_texts) >= 450:
+                break
+
+    if len(human_texts) < 450:
+        raise RuntimeError("Not enough Brown corpus sentences for 450 human samples.")
+
+    texts  = ai_texts + human_texts
+    labels = [1] * len(ai_texts) + [0] * len(human_texts)
+    print(f"[data] Dataset: {len(ai_texts)} AI, {len(human_texts)} human")
     return texts, labels
 
 
-def build_feature_matrix(texts: list[str]) -> np.ndarray:
+def extract_all_features(texts: list[str]) -> np.ndarray:
+    print(f"[features] Extracting features for {len(texts)} documents…")
     rows = []
-    t0 = time.time()
-    for i, text in enumerate(texts):
-        feats = extract_features(text)
-        rows.append([feats[name] for name in FEATURE_NAMES])
-        if (i + 1) % 100 == 0:
-            print(f"  extracted features for {i + 1}/{len(texts)} ({time.time() - t0:.1f}s)")
+    for i, text in enumerate(texts, 1):
+        if i % 50 == 0:
+            print(f"  {i}/{len(texts)}")
+        rows.append(feature_vector(text))
     return np.array(rows, dtype=float)
 
 
 def main():
-    print("Loading dataset...")
-    texts, labels = load_dataset()
+    t0 = time.time()
+    MODEL_DIR.mkdir(exist_ok=True)
+
+    texts, labels = build_dataset()
+    X = extract_all_features(texts)
     y = np.array(labels)
-    print(f"{len(texts)} examples ({sum(y)} AI / {len(y) - sum(y)} human)")
 
-    print("Extracting features (this calls the bigram LM + POS tagger per example)...")
-    X = build_feature_matrix(texts)
-
+    # 80/20 stratified split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X, y, test_size=0.20, random_state=42, stratify=y
     )
 
-    scaler = StandardScaler()
-    X_train_s = scaler.fit_transform(X_train)
-    X_test_s = scaler.transform(X_test)
+    # Standardise
+    scaler   = StandardScaler()
+    Xtr_sc   = scaler.fit_transform(X_train)
+    Xte_sc   = scaler.transform(X_test)
 
-    candidates = {
-        "LogisticRegression": LogisticRegression(max_iter=1000, class_weight="balanced"),
-        "RandomForest": RandomForestClassifier(
-            n_estimators=200, max_depth=10, random_state=42, class_weight="balanced"
-        ),
-        "LinearSVC": LinearSVC(class_weight="balanced", max_iter=5000),
+    # 5-fold CV to choose best model
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    print("\n[train] 5-fold cross-validation:")
+    best_name, best_auc, best_clf = None, -1, None
+    for name, clf in CANDIDATES.items():
+        aucs = cross_val_score(clf, Xtr_sc, y_train, cv=cv, scoring="roc_auc")
+        print(f"  {name:<22} AUC = {aucs.mean():.4f} ± {aucs.std():.4f}")
+        if aucs.mean() > best_auc:
+            best_auc  = aucs.mean()
+            best_name = name
+            best_clf  = clf
+
+    print(f"\n[train] Winner: {best_name}  (CV AUC = {best_auc:.4f})")
+
+    # Refit on full training set, evaluate on held-out test
+    best_clf.fit(Xtr_sc, y_train)
+    y_pred  = best_clf.predict(Xte_sc)
+    y_proba = best_clf.predict_proba(Xte_sc)[:, 1]
+    acc  = accuracy_score(y_test, y_pred)
+    auc  = roc_auc_score(y_test, y_proba)
+    print(f"[eval] Test accuracy = {acc:.4f}  AUC = {auc:.4f}")
+
+    # Persist
+    bundle = {
+        "model":         best_clf,
+        "scaler":        scaler,
+        "feature_names": FEATURE_NAMES,
+        "model_name":    best_name,
+        "test_accuracy": round(acc, 4),
+        "test_auc":      round(auc, 4),
     }
-
-    results = {}
-    for name, clf in candidates.items():
-        clf.fit(X_train_s, y_train)
-        preds = clf.predict(X_test_s)
-        acc = accuracy_score(y_test, preds)
-        # LinearSVC has no predict_proba; use decision_function for AUC instead.
-        if hasattr(clf, "predict_proba"):
-            scores = clf.predict_proba(X_test_s)[:, 1]
-        else:
-            scores = clf.decision_function(X_test_s)
-        auc = roc_auc_score(y_test, scores)
-        results[name] = (clf, acc, auc)
-        print(f"\n=== {name} ===  accuracy={acc:.3f}  auc={auc:.3f}")
-        print(classification_report(y_test, preds, target_names=["human", "ai"]))
-
-    best_name = max(results, key=lambda k: results[k][2])
-    best_clf, best_acc, best_auc = results[best_name]
-    print(f"\nBest model: {best_name} (accuracy={best_acc:.3f}, auc={best_auc:.3f})")
-
-    # Wrap LinearSVC so the inference code can always call a uniform
-    # predict_proba-like interface regardless of which model won.
-    needs_calibration = not hasattr(best_clf, "predict_proba")
-    if needs_calibration:
-        from sklearn.calibration import CalibratedClassifierCV
-        print("Calibrating LinearSVC for probability outputs...")
-        best_clf = CalibratedClassifierCV(best_clf, cv=5)
-        best_clf.fit(X_train_s, y_train)
-
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    with open(MODEL_DIR / "classifier.pkl", "wb") as f:
-        pickle.dump(
-            {
-                "model": best_clf,
-                "scaler": scaler,
-                "feature_names": FEATURE_NAMES,
-                "model_name": best_name,
-                "test_accuracy": best_acc,
-                "test_auc": best_auc,
-            },
-            f,
-        )
-    print(f"Saved classifier bundle to {MODEL_DIR / 'classifier.pkl'}")
+    out = MODEL_DIR / "classifier.pkl"
+    with open(out, "wb") as f:
+        pickle.dump(bundle, f)
+    print(f"[save] Saved to {out}  ({out.stat().st_size // 1024} KB)")
+    print(f"[done] Total time: {time.time() - t0:.1f}s")
 
 
 if __name__ == "__main__":

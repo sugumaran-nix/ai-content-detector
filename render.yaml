@@ -8,17 +8,11 @@ services:
     buildCommand: |
       pip install -r requirements.txt &&
       python -c "import nltk; [nltk.download(p, quiet=True) for p in ['brown','punkt','punkt_tab','stopwords','averaged_perceptron_tagger','averaged_perceptron_tagger_eng']]" &&
-      python -c "
-from pathlib import Path
-lm_path = Path('model/reference_lm.pkl')
-clf_path = Path('model/classifier.pkl')
-if not lm_path.exists():
-    from reference_lm import build_reference_lm, save_reference_lm
-    save_reference_lm(build_reference_lm())
-if not clf_path.exists():
-    import train
-"
+      python reference_lm.py &&
+      python train.py
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11"
+      - key: NLTK_DATA
+        value: /opt/render/project/src/nltk_data
