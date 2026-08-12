@@ -11,19 +11,19 @@
 ![Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 
 
-<!--
 **[🚀 Live Demo](https://ai-content-detector-nine.vercel.app)** · **[API Docs](https://ai-content-detector-hodw.onrender.com/docs)**
 
 ---
 
--->
 
-<!-- Add a demo GIF here once recorded -->
-<!-- ![Demo](./demo.gif) -->
+<!-- Add a demo GIF here once recorded 
+
+![Demo](./demo.gif) -->
 
 > 📸 **Demo GIF coming soon** — record a paste → analysis flow and drop it here as `demo.gif`
 
 ---
+-->
 
 ## ✨ Features
 
