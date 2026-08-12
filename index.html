@@ -1214,7 +1214,7 @@ footer{
     <div style="flex:1">
       <strong>Optional backend mode</strong> — connect to the FastAPI server for full Python-based inference.
       Enter backend URL (e.g. <code style="font-family:var(--mono);font-size:11px">http://localhost:8000</code>):
-      <input class="api-url-input" id="apiUrlInput" placeholder="Leave empty to use in-browser model" spellcheck="false"/>
+      <input class="api-url-input" id="apiUrlInput" value="https://ai-content-detector-hodw.onrender.com" spellcheck="false"/>
     </div>
     <button class="btn btn-sm" id="apiToggleBtn" style="flex-shrink:0">Connect</button>
   </div>
@@ -1505,7 +1505,7 @@ themeBtn.addEventListener('click', () => {
 // ══════════════════════════════════════════════════════
 //  BACKEND API TOGGLE
 // ══════════════════════════════════════════════════════
-let API_URL = null; // null = in-browser mode
+let API_URL = "https://ai-content-detector-hodw.onrender.com"
 const apiToggleBtn  = document.getElementById('apiToggleBtn');
 const apiUrlInput   = document.getElementById('apiUrlInput');
 const sourceTag     = document.getElementById('sourceTag');
