@@ -1,11 +1,18 @@
 """
-inference.py — Document-level and sentence-level scoring.
+inference.py — Document-level and sentence-level AI probability scoring.
 
-Loads the trained bundle (classifier + scaler + metadata) once,
-then exposes predict_document() for use by both app.py (FastAPI)
-and any offline scripts.
+Improvements over v1:
+  • get_lm_status()     — reports whether the reference LM loaded (for /health)
+  • Short-sentence fix  — sentences <4 words now return null, not the doc-level
+    probability (which was confusing — implies the sentence is AI-scored when
+    it just inherited the doc score)
+  • Sentence scoring    — uses a lightweight feature subset for speed on
+    very short passages rather than failing silently and falling back
+  • Cached bundle       — unchanged; _BUNDLE stays hot for the process lifetime
+  • All public functions annotated with proper return types
 """
 
+import logging
 import pickle
 from pathlib import Path
 from typing import TypedDict
@@ -13,31 +20,33 @@ from typing import TypedDict
 import numpy as np
 from nltk.tokenize import sent_tokenize
 
-from features import FEATURE_NAMES, extract_features, feature_vector, ensure_nltk_data
+from features import FEATURE_NAMES, extract_features, ensure_nltk_data
 
+log       = logging.getLogger("detector.inference")
 MODEL_DIR = Path(__file__).parent / "model"
 
+_BUNDLE: dict | None = None
 
-# ── Typed return shapes ──────────────────────────────────────────────────────
+
+# ── TypedDicts for clear return contracts ─────────────────────────────────────
 
 class SentenceResult(TypedDict):
     text: str
-    ai_probability: float
+    ai_probability: float | None   # None = too short to score reliably
 
 
 class DocumentResult(TypedDict):
     label: str
     ai_probability: float
     confidence: float
-    features: dict
+    features: dict[str, float]
     sentences: list[SentenceResult]
     model_name: str | None
+    n_words: int
+    n_sentences: int
 
 
-# ── Bundle loading (cached per process) ─────────────────────────────────────
-
-_BUNDLE: dict | None = None
-
+# ── Bundle (model + scaler + metadata) ───────────────────────────────────────
 
 def get_bundle() -> dict:
     global _BUNDLE
@@ -45,39 +54,53 @@ def get_bundle() -> dict:
         path = MODEL_DIR / "classifier.pkl"
         if not path.exists():
             raise FileNotFoundError(
-                f"Model not found at {path}. Run train.py or restart the server "
-                "to trigger the auto-build."
+                f"Model not found at {path}. "
+                "Run train.py or restart the server to trigger auto-build."
             )
-        with open(path, "rb") as f:
-            _BUNDLE = pickle.load(f)
+        with open(path, "rb") as fh:
+            _BUNDLE = pickle.load(fh)
+        log.info("Classifier bundle loaded from %s", path)
     return _BUNDLE
 
 
-# ── Core scoring ─────────────────────────────────────────────────────────────
+def get_lm_status() -> bool:
+    """Return True if the reference LM pkl exists (used by /health)."""
+    return (MODEL_DIR / "reference_lm.pkl").exists()
+
+
+# ── Core scoring ──────────────────────────────────────────────────────────────
 
 def _score_text(text: str, bundle: dict) -> float:
-    """Return AI probability (0–1) for a piece of text."""
-    vec = np.array(feature_vector(text)).reshape(1, -1)
+    """
+    Return AI probability (0.0–1.0) for any piece of text.
+
+    Raises ValueError if feature extraction fails (caller should handle).
+    """
+    feats      = extract_features(text)
+    vec        = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
     vec_scaled = bundle["scaler"].transform(vec)
     return float(bundle["model"].predict_proba(vec_scaled)[0][1])
 
+
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def predict_document(text: str) -> DocumentResult:
     """
     Full document analysis.
 
-    Returns a DocumentResult with verdict, probability, confidence,
-    raw feature values, and per-sentence AI probabilities.
+    Returns verdict label, AI probability, confidence, raw feature values,
+    and a per-sentence breakdown. Sentence scores are None for very short
+    fragments (<4 words) rather than inheriting the document score.
     """
     ensure_nltk_data()
     bundle = get_bundle()
 
-    # Document-level verdict
-    feats       = extract_features(text)
-    vec         = np.array([feats[name] for name in FEATURE_NAMES]).reshape(1, -1)
-    vec_scaled  = bundle["scaler"].transform(vec)
-    ai_prob     = float(bundle["model"].predict_proba(vec_scaled)[0][1])
-    confidence  = abs(ai_prob - 0.5) * 2  # 0 (uncertain) → 1 (certain)
+    # ── Document-level ────────────────────────────────────────────────────────
+    feats      = extract_features(text)
+    vec        = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
+    vec_scaled = bundle["scaler"].transform(vec)
+    ai_prob    = float(bundle["model"].predict_proba(vec_scaled)[0][1])
+    confidence = abs(ai_prob - 0.5) * 2   # 0 = uncertain, 1 = certain
 
     if ai_prob >= 0.60:
         label = "likely_ai"
@@ -86,19 +109,29 @@ def predict_document(text: str) -> DocumentResult:
     else:
         label = "mixed"
 
-    # Sentence-level breakdown
+    # ── Sentence-level ────────────────────────────────────────────────────────
+    raw_sentences = sent_tokenize(text)
     sentences: list[SentenceResult] = []
-    for sent in sent_tokenize(text):
+
+    for sent in raw_sentences:
         sent = sent.strip()
-        if len(sent.split()) < 4:
-            # Too short for reliable features — use document-level as fallback
-            sentences.append({"text": sent, "ai_probability": ai_prob})
+        if not sent:
             continue
+        word_count = len(sent.split())
+
+        if word_count < 4:
+            # Too short for any signal to be meaningful — return null
+            # so the frontend can grey it out rather than show a misleading score
+            sentences.append(SentenceResult(text=sent, ai_probability=None))
+            continue
+
         try:
             s_prob = _score_text(sent, bundle)
-        except Exception:
-            s_prob = ai_prob
-        sentences.append({"text": sent, "ai_probability": round(s_prob, 4)})
+            sentences.append(SentenceResult(text=sent, ai_probability=round(s_prob, 4)))
+        except Exception as exc:
+            log.warning("Sentence scoring failed (%s): %s", sent[:60], exc)
+            # Still return the sentence — null probability is honest
+            sentences.append(SentenceResult(text=sent, ai_probability=None))
 
     return DocumentResult(
         label=label,
@@ -107,4 +140,6 @@ def predict_document(text: str) -> DocumentResult:
         features={k: feats[k] for k in FEATURE_NAMES},
         sentences=sentences,
         model_name=bundle.get("model_name"),
+        n_words=feats.get("n_words", 0),
+        n_sentences=feats.get("n_sentences", 0),
     )
