@@ -7,12 +7,29 @@ services:
     rootDir: backend
     buildCommand: |
       pip install -r requirements.txt &&
-      python -c "import nltk; [nltk.download(p, quiet=True) for p in ['brown','punkt','punkt_tab','stopwords','averaged_perceptron_tagger','averaged_perceptron_tagger_eng']]" &&
+      python -c "
+      import nltk, os
+      nltk.data.path.insert(0, '/opt/render/project/src/nltk_data')
+      for p in ['brown','punkt','punkt_tab','stopwords',
+                'averaged_perceptron_tagger','averaged_perceptron_tagger_eng']:
+          nltk.download(p, quiet=True, download_dir='/opt/render/project/src/nltk_data')
+      " &&
       python reference_lm.py &&
       python train.py
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: NLTK_DATA
         value: /opt/render/project/src/nltk_data
+      - key: ALLOWED_ORIGINS
+        # Replace with your actual frontend URL before deploying:
+        # value: https://your-portfolio.vercel.app
+        value: "*"
+      - key: RATE_LIMIT
+        value: "60"
+      - key: RATE_WINDOW
+        value: "60"
+      - key: MAX_BATCH
+        value: "10"
