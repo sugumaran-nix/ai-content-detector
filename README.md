@@ -18,7 +18,7 @@
 
 <!-- Add a demo GIF here once recorded 
 
-![Demo](./demo.gif) -->
+![Demo](./demo.gif)
 
 > 📸 **Demo GIF coming soon** — record a paste → analysis flow and drop it here as `demo.gif`
 
