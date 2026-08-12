@@ -1,108 +1,299 @@
 """
-FastAPI service for the AI-Generated Text Detector.
+app.py — FastAPI service for AI-Generated Text Detector.
+
+Improvements over v1:
+  • /analyze/lite  — returns verdict + probability only (fast path for embeds)
+  • /batch         — analyze up to 10 texts in one request
+  • /health        — includes model info + LM loaded status
+  • Rate limiting  — 60 req/min per IP via sliding window (no Redis needed)
+  • Request IDs    — X-Request-ID header on every response for tracing
+  • Structured 422 — cleaner Pydantic validation errors
+  • CORS           — env-var controlled, no wildcard in production
+  • Startup timing — logs how long model warm-up takes
 
 Endpoints:
-  GET  /health           - liveness check
-  GET  /model-info       - which model is loaded + its held-out test metrics
-  POST /analyze          - { text: str } -> document verdict + sentence breakdown
+  GET  /health           — liveness + readiness
+  GET  /model-info       — classifier metadata + test metrics
+  POST /analyze          — full analysis (verdict, features, sentence breakdown)
+  POST /analyze/lite     — verdict + probability only
+  POST /batch            — analyze up to 10 texts at once
 """
 
+import os
+import time
+import uuid
+import logging
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 import inference
 
-MAX_CHARS = 8_000
-MIN_WORDS = 8
-MODEL_DIR = Path(__file__).parent / "model"
+# ── Config ───────────────────────────────────────────────────────────────────
+MAX_CHARS   = int(os.getenv("MAX_CHARS", 8_000))
+MIN_WORDS   = int(os.getenv("MIN_WORDS", 8))
+RATE_LIMIT  = int(os.getenv("RATE_LIMIT", 60))        # requests per window
+RATE_WINDOW = int(os.getenv("RATE_WINDOW", 60))       # seconds
+MAX_BATCH   = int(os.getenv("MAX_BATCH", 10))
+MODEL_DIR   = Path(__file__).parent / "model"
 
-# For production, replace "*" with your actual frontend domain:
-# e.g. ["https://my-portfolio.vercel.app"]
-ALLOWED_ORIGINS = ["*"]
+# CORS: comma-separated list in env, default open for local dev
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+log = logging.getLogger("detector")
 
 
+# ── Rate limiter (in-process sliding window, good enough for free tier) ──────
+_rate_store: dict[str, deque] = defaultdict(deque)
+
+def _check_rate(ip: str) -> bool:
+    """Return True if request is allowed, False if rate-limited."""
+    now = time.monotonic()
+    dq  = _rate_store[ip]
+    # drop timestamps older than window
+    while dq and dq[0] < now - RATE_WINDOW:
+        dq.popleft()
+    if len(dq) >= RATE_LIMIT:
+        return False
+    dq.append(now)
+    return True
+
+
+# ── Model bootstrap ───────────────────────────────────────────────────────────
 def _ensure_models() -> None:
-    """Build reference LM and classifier if pkl files are missing (cold deploy)."""
-    lm_path = MODEL_DIR / "reference_lm.pkl"
+    lm_path  = MODEL_DIR / "reference_lm.pkl"
     clf_path = MODEL_DIR / "classifier.pkl"
 
     if not lm_path.exists():
-        print("[startup] reference_lm.pkl not found — building from NLTK Brown corpus…")
+        log.info("reference_lm.pkl not found — building from NLTK Brown corpus…")
         from reference_lm import build_reference_lm, save_reference_lm
         save_reference_lm(build_reference_lm())
-        print("[startup] reference_lm.pkl built.")
+        log.info("reference_lm.pkl built.")
 
     if not clf_path.exists():
-        print("[startup] classifier.pkl not found — training classifier…")
+        log.info("classifier.pkl not found — training now…")
         from train import main as train_main
         train_main()
-        print("[startup] classifier.pkl trained.")
+        log.info("classifier.pkl trained.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    t0 = time.perf_counter()
     _ensure_models()
-    inference.get_bundle()   # warm the model into memory
+    inference.get_bundle()          # warm into memory
+    elapsed = time.perf_counter() - t0
+    log.info(f"Model ready in {elapsed:.2f}s")
     yield
 
 
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="AI-Generated Text Detector",
-    description="Statistical-feature classifier estimating whether text is AI-generated.",
-    version="1.1.0",
+    description=(
+        "Statistical-feature classifier estimating the probability that a "
+        "passage of text was generated by a large language model. "
+        "11 interpretable signals — perplexity, burstiness, lexical diversity, "
+        "POS entropy, readability, and more."
+    ),
+    version="2.0.0",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID", "X-Process-Time"],
 )
 
 
+# ── Middleware — request ID + timing ─────────────────────────────────────────
+@app.middleware("http")
+async def add_request_metadata(request: Request, call_next):
+    rid   = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    t0    = time.perf_counter()
+    resp  = await call_next(request)
+    ms    = round((time.perf_counter() - t0) * 1000, 1)
+    resp.headers["X-Request-ID"]    = rid
+    resp.headers["X-Process-Time"]  = f"{ms}ms"
+    return resp
+
+
+# ── Rate-limit middleware ─────────────────────────────────────────────────────
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.method in ("POST",):
+        ip = request.client.host or "unknown"
+        if not _check_rate(ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"Rate limit exceeded — max {RATE_LIMIT} requests per {RATE_WINDOW}s."},
+                headers={"Retry-After": str(RATE_WINDOW)},
+            )
+    return await call_next(request)
+
+
+# ── Request / Response schemas ───────────────────────────────────────────────
 class AnalyzeRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=MAX_CHARS)
+    text: str = Field(..., min_length=1, max_length=MAX_CHARS, description="Text to analyze (max 8,000 chars)")
+
+    @field_validator("text")
+    @classmethod
+    def strip_text(cls, v: str) -> str:
+        return v.strip()
+
+
+class BatchRequest(BaseModel):
+    texts: list[str] = Field(..., min_length=1, max_length=MAX_BATCH, description=f"Up to {MAX_BATCH} texts")
+
+    @field_validator("texts")
+    @classmethod
+    def strip_texts(cls, vs: list[str]) -> list[str]:
+        return [v.strip() for v in vs]
+
+
+class SentenceResult(BaseModel):
+    text: str
+    ai_probability: float | None
 
 
 class AnalyzeResponse(BaseModel):
     label: str
     ai_probability: float
     confidence: float
-    features: dict
-    sentences: list[dict]
+    features: dict[str, float]
+    sentences: list[SentenceResult]
+    model_name: str | None = None
+    n_words: int | None = None
+    n_sentences: int | None = None
+
+
+class LiteResponse(BaseModel):
+    label: str
+    ai_probability: float
+    confidence: float
     model_name: str | None = None
 
 
-@app.get("/health")
+class BatchItemResponse(BaseModel):
+    index: int
+    label: str
+    ai_probability: float
+    confidence: float
+    error: str | None = None
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def _validate_length(text: str) -> None:
+    words = len(text.split())
+    if words < MIN_WORDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Text too short — provide at least {MIN_WORDS} words ({words} found).",
+        )
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/health", summary="Liveness + readiness check")
 def health():
-    return {"status": "ok"}
+    try:
+        bundle = inference.get_bundle()
+        model_name = bundle.get("model_name", "unknown")
+        lm_loaded  = inference.get_lm_status()
+        return {
+            "status":     "ok",
+            "model":      model_name,
+            "lm_loaded":  lm_loaded,
+            "version":    app.version,
+        }
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"status": "unavailable", "detail": str(exc)})
 
 
-@app.get("/model-info")
+@app.get("/model-info", summary="Classifier metadata and test metrics")
 def model_info():
     bundle = inference.get_bundle()
     return {
-        "model_name":    bundle.get("model_name"),
-        "test_accuracy": bundle.get("test_accuracy"),
-        "test_auc":      bundle.get("test_auc"),
-        "feature_names": bundle.get("feature_names"),
+        "model_name":     bundle.get("model_name"),
+        "test_accuracy":  bundle.get("test_accuracy"),
+        "test_auc":       bundle.get("test_auc"),
+        "feature_names":  bundle.get("feature_names"),
+        "n_classes":      2,
+        "labels":         ["likely_human", "mixed", "likely_ai"],
+        "thresholds":     {"likely_ai": 0.60, "likely_human": 0.40},
     }
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalyzeResponse, summary="Full document analysis")
 def analyze(req: AnalyzeRequest):
-    text = req.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Text must not be empty.")
-    word_count = len(text.split())
-    if word_count < MIN_WORDS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Text is too short — provide at least {MIN_WORDS} words.",
-        )
-    return inference.predict_document(text)
+    _validate_length(req.text)
+    try:
+        result = inference.predict_document(req.text)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        log.exception("Inference error")
+        raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
+    return result
+
+
+@app.post("/analyze/lite", response_model=LiteResponse, summary="Verdict + probability only (fast path)")
+def analyze_lite(req: AnalyzeRequest):
+    _validate_length(req.text)
+    try:
+        result = inference.predict_document(req.text)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        log.exception("Inference error (lite)")
+        raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
+    return LiteResponse(
+        label=result["label"],
+        ai_probability=result["ai_probability"],
+        confidence=result["confidence"],
+        model_name=result.get("model_name"),
+    )
+
+
+@app.post("/batch", response_model=list[BatchItemResponse], summary=f"Analyze up to {MAX_BATCH} texts in one request")
+def batch_analyze(req: BatchRequest):
+    if len(req.texts) > MAX_BATCH:
+        raise HTTPException(status_code=422, detail=f"Max {MAX_BATCH} texts per batch.")
+    results = []
+    for i, text in enumerate(req.texts):
+        words = len(text.split())
+        if words < MIN_WORDS:
+            results.append(BatchItemResponse(
+                index=i, label="error", ai_probability=0.0, confidence=0.0,
+                error=f"Too short ({words} words, need {MIN_WORDS}+).",
+            ))
+            continue
+        try:
+            r = inference.predict_document(text)
+            results.append(BatchItemResponse(
+                index=i,
+                label=r["label"],
+                ai_probability=r["ai_probability"],
+                confidence=r["confidence"],
+            ))
+        except Exception as exc:
+            results.append(BatchItemResponse(
+                index=i, label="error", ai_probability=0.0, confidence=0.0,
+                error=str(exc),
+            ))
+    return results
