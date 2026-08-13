@@ -1,46 +1,29 @@
-name: Export lm.json
+import json, sys
+from pathlib import Path
 
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - 'backend/reference_lm.py'
-      - 'backend/export_lm_json.py'
+# Must import BigramLM before pickle.load so the class is in scope
+from reference_lm import BigramLM, MODEL_PATH  # noqa: F401
+import pickle
 
-jobs:
-  export:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
+OUT_PATH = Path(__file__).parent.parent / "lm.json"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+def main():
+    if not MODEL_PATH.exists():
+        print(f"ERROR: {MODEL_PATH} not found. Run reference_lm.py first.")
+        sys.exit(1)
+    print(f"Loading {MODEL_PATH} ...")
+    with open(MODEL_PATH, "rb") as f:
+        lm = pickle.load(f)
+    print(f"Vocab: {lm.vocab_size}  Unigrams: {len(lm.unigram_counts)}  Bigrams: {len(lm.bigram_counts)}")
+    payload = {
+        "u": dict(lm.unigram_counts),
+        "b": {prev: dict(nexts) for prev, nexts in lm.bigram_counts.items()},
+        "v": lm.vocab_size,
+    }
+    print(f"Writing {OUT_PATH} ...")
+    with open(OUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Done. {OUT_PATH.stat().st_size / 1_048_576:.1f} MB")
 
-      - name: Install dependencies
-        run: pip install nltk
-
-      - name: Download NLTK data
-        run: |
-          python -c "
-          import nltk
-          nltk.download('brown')
-          nltk.download('punkt')
-          nltk.download('punkt_tab')
-          "
-
-      - name: Build reference LM pkl
-        run: python backend/reference_lm.py
-
-      - name: Export lm.json
-        run: python backend/export_lm_json.py
-
-      - name: Commit lm.json
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add lm.json
-          git diff --staged --quiet || git commit -m "chore: regenerate lm.json [skip ci]"
-          git push
+if __name__ == "__main__":
+    main()
