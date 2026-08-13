@@ -1,1 +1,28 @@
+import json, sys, pickle
+from pathlib import Path
+from collections import Counter, defaultdict
 
+class BigramLM:
+    def __init__(self):
+        self.unigram_counts = Counter()
+        self.bigram_counts = defaultdict(Counter)
+        self.vocab = set()
+
+OUT_PATH = Path(__file__).parent.parent / "lm.json"
+MODEL_PATH = Path(__file__).parent / "model" / "reference_lm.pkl"
+
+with open(MODEL_PATH, "rb") as f:
+    lm = pickle.load(f)
+
+print(f"Vocab: {lm.vocab_size}")
+
+payload = {
+    "u": dict(lm.unigram_counts),
+    "b": {prev: dict(nexts) for prev, nexts in lm.bigram_counts.items()},
+    "v": lm.vocab_size,
+}
+
+with open(OUT_PATH, "w", encoding="utf-8") as f:
+    json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+
+print(f"Done. {OUT_PATH.stat().st_size / 1_048_576:.1f} MB")
