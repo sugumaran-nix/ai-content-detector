@@ -24,9 +24,8 @@ services:
       - key: NLTK_DATA
         value: /opt/render/project/src/nltk_data
       - key: ALLOWED_ORIGINS
-        # Replace with your actual frontend URL before deploying:
-        # value: https://your-portfolio.vercel.app
-        value: "*"
+        # Set this to your Vercel frontend URL. Comma-separate multiple origins.
+        value: "https://ai-content-detector-nine.vercel.app"
       - key: RATE_LIMIT
         value: "60"
       - key: RATE_WINDOW

@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="dark light"/>
 <meta name="theme-color" content="#080b14" media="(prefers-color-scheme: dark)"/>
 <meta name="theme-color" content="#f0f2f8" media="(prefers-color-scheme: light)"/>
-<link rel="canonical" href="https://github.com/sugumaran-nix/ai-content-detector"/>
+<link rel="canonical" href="https://ai-content-detector-nine.vercel.app"/>
 <meta property="og:type" content="website"/>
 <meta property="og:title" content="AI Text Detector — Private, In-Browser AI Content Detection"/>
 <meta property="og:description" content="11 statistical signals, sentence-level highlighting and a transparent diagnostic readout. Nothing you paste ever leaves your device."/>
@@ -17,6 +17,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1629'/%3E%3Ccircle cx='14' cy='14' r='6' fill='none' stroke='%234ade80' stroke-width='2'/%3E%3Cline x1='18.5' y1='18.5' x2='24' y2='24' stroke='%234ade80' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/compromise@14/builds/compromise.min.js"></script>
 <style>
 /* ═══════════════════════════════════
    DESIGN TOKENS — Impeccable-style
@@ -218,14 +219,6 @@ body::before{
 
 .topbar-r{display:flex;align-items:center;gap:var(--sp-2);}
 
-.badge{
-  font-family:var(--mono);font-size:10px;font-weight:600;
-  background:var(--accent-pale);
-  color:var(--accent);
-  border:1px solid rgba(74,222,128,0.2);
-  border-radius:4px;padding:2px 8px;
-  letter-spacing:0.05em;
-}
 
 .theme-btn{
   width:32px;height:32px;border-radius:var(--r-sm);
@@ -947,25 +940,7 @@ textarea::placeholder{color:var(--t3);}
   font-size:13px;color:var(--t2);line-height:1.7;
 }
 
-/* ═══════════════════════════════════
-   BACKEND MODE BANNER
-═══════════════════════════════════ */
-.api-banner{
-  display:flex;align-items:center;gap:var(--sp-3);
-  padding:var(--sp-3) var(--sp-4);
-  background:var(--accent-pale);
-  border:1px solid rgba(74,222,128,0.2);
-  border-radius:var(--r-lg);
-  margin-bottom:var(--sp-4);
-  font-size:13px;color:var(--t2);
-}
-.api-banner svg{color:var(--accent);flex-shrink:0;}
-.api-banner strong{color:var(--t1);}
-.api-url-input{
-  flex:1;background:transparent;border:none;outline:none;
-  font-family:var(--mono);font-size:12px;color:var(--t1);
-  padding:3px 0;
-}
+
 
 /* ═══════════════════════════════════
    FOOTER
@@ -1001,8 +976,6 @@ footer{
   .v-score{width:64px;height:64px;}
   .v-num{font-size:17px;}
   .v-actions{flex-direction:row;align-items:center;justify-content:flex-start;}
-  /* API banner wraps cleanly */
-  .api-banner{flex-wrap:wrap;gap:var(--sp-2);}
   /* History items */
   .hist-item{gap:var(--sp-3);}
 }
@@ -1018,7 +991,6 @@ footer{
 
   /* Topbar — tighter, no github text */
   .topbar{padding:0 var(--sp-3);}
-  .badge{display:none;}
   .gh-link span{display:none;} /* hide "GitHub" text, keep icon */
 
   /* Stats — 2 cols */
@@ -1078,10 +1050,6 @@ footer{
   .foot-grid{flex-direction:column;gap:var(--sp-3);}
   .foot-r{gap:var(--sp-3);}
 
-  /* API banner */
-  .api-banner{flex-direction:column;align-items:flex-start;}
-  #apiToggleBtn{width:100%;}
-
   /* Section heads */
   .section-head h2{font-size:1.3rem;}
 
@@ -1119,16 +1087,6 @@ footer{
 }
 .reveal.visible{opacity:1;transform:none;}
 
-/* ═══════════════════════════════════
-   API RESULTS INDICATOR
-═══════════════════════════════════ */
-.source-tag{
-  display:inline-flex;align-items:center;gap:4px;
-  font-family:var(--mono);font-size:10px;font-weight:500;
-  padding:2px 7px;border-radius:3px;letter-spacing:0.04em;
-}
-.source-tag.local{background:var(--raised);color:var(--t3);border:1px solid var(--rule);}
-.source-tag.remote{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(74,222,128,0.25);}
 </style>
 </head>
 <body>
@@ -1152,7 +1110,6 @@ footer{
     AI<span style="color:var(--t3);font-weight:400;">Text</span>Detector
   </a>
   <div class="topbar-r">
-    <span class="badge">100% LOCAL</span>
     <button class="theme-btn" id="themeBtn" aria-label="Toggle theme">
       <svg id="iconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg id="iconMoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -1199,24 +1156,13 @@ footer{
       </div>
       <div class="stat-cell">
         <div class="stat-v"><span>99.4</span>%</div>
-        <div class="stat-l">Held-out accuracy</div>
+        <div class="stat-l">Training-split accuracy</div>
       </div>
       <div class="stat-cell">
         <div class="stat-v"><span>0</span></div>
         <div class="stat-l">Bytes to any server</div>
       </div>
     </div>
-  </div>
-
-  <!-- Backend API banner (optional) -->
-  <div class="api-banner" id="apiBanner">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-    <div style="flex:1">
-      <strong>Optional backend mode</strong> — connect to the FastAPI server for full Python-based inference.
-      Enter backend URL (e.g. <code style="font-family:var(--mono);font-size:11px">http://localhost:8000</code>):
-      <input class="api-url-input" id="apiUrlInput" value="https://ai-content-detector-hodw.onrender.com" spellcheck="false"/>
-    </div>
-    <button class="btn btn-sm" id="apiToggleBtn" style="flex-shrink:0">Connect</button>
   </div>
 
   <!-- Sample buttons -->
@@ -1304,7 +1250,6 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span class="model-badge" id="modelBadge"></span>
-            <span class="source-tag local" id="sourceTag">local</span>
           </div>
         </div>
         <div class="v-actions">
@@ -1359,7 +1304,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       <div class="feat-grid" id="featGrid"></div>
       <div class="model-row">
         <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">LinearSVC (Platt)</div></div>
-        <div class="mstat"><div class="mstat-l">Accuracy</div><div class="mstat-v good">99.4%</div></div>
+        <div class="mstat"><div class="mstat-l">Accuracy</div><div class="mstat-v good" title="On training distribution. Real-world accuracy is lower on short or paraphrased text.">99.4% (train split)</div></div>
         <div class="mstat"><div class="mstat-l">ROC AUC</div><div class="mstat-v good">1.000</div></div>
         <div class="mstat"><div class="mstat-l">Signals</div><div class="mstat-v">11</div></div>
         <div class="mstat"><div class="mstat-l">Inference</div><div class="mstat-v">~10ms</div></div>
@@ -1440,7 +1385,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
     </details>
     <details>
       <summary>How accurate is it?</summary>
-      <p class="faq-a">The classifier reaches 99.4% accuracy on its held-out test split, but that split reflects the distribution it was trained on. Real-world text — especially short, edited, or paraphrased passages — is harder, so expect lower accuracy in the wild.</p>
+      <p class="faq-a">The classifier reaches 99.4% accuracy on its training-distribution test split — roughly 900 labeled samples drawn from a Brown corpus human baseline and GPT-3.5/4 output. That split does not represent the full range of modern AI writing styles, short passages, or paraphrased text. Real-world accuracy is meaningfully lower. Treat the score as one signal among many, not a definitive verdict.</p>
     </details>
     <details>
       <summary>How much text do I need?</summary>
@@ -1454,10 +1399,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       <summary>Which AI models can it detect?</summary>
       <p class="faq-a">It's model-agnostic. Rather than fingerprinting a specific system, it looks for statistical regularities common to fluent machine-generated prose, so it generalizes across mainstream assistants.</p>
     </details>
-    <details>
-      <summary>Can I connect to the FastAPI backend?</summary>
-      <p class="faq-a">Yes. Enter your backend URL in the connection banner above the input. When connected, analysis is sent to <code style="font-family:var(--mono)">POST /analyze</code> on your server and the source indicator will show "API" instead of "local".</p>
-    </details>
+
   </div>
 
 </main>
@@ -1502,40 +1444,7 @@ themeBtn.addEventListener('click', () => {
   applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 });
 
-// ══════════════════════════════════════════════════════
-//  BACKEND API TOGGLE
-// ══════════════════════════════════════════════════════
-let API_URL = "https://ai-content-detector-hodw.onrender.com"
-const apiToggleBtn  = document.getElementById('apiToggleBtn');
-const apiUrlInput   = document.getElementById('apiUrlInput');
-const sourceTag     = document.getElementById('sourceTag');
 
-apiToggleBtn.addEventListener('click', () => {
-  const url = apiUrlInput.value.trim().replace(/\/+$/, '');
-  if (!url) { toast('Enter a backend URL first.', 'warn'); return; }
-  if (API_URL) {
-    // Disconnect
-    API_URL = null;
-    apiToggleBtn.textContent = 'Connect';
-    sourceTag.textContent = 'local';
-    sourceTag.className = 'source-tag local';
-    toast('Disconnected — using in-browser model.', 'info', 2500);
-  } else {
-    // Test connection
-    fetch(url + '/health')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(() => {
-        API_URL = url;
-        apiToggleBtn.textContent = 'Disconnect';
-        sourceTag.textContent = 'API';
-        sourceTag.className = 'source-tag remote';
-        toast('Connected to ' + url, 'ok', 2500);
-      })
-      .catch(() => {
-        toast('Could not reach ' + url + '/health', 'err');
-      });
-  }
-});
 
 // ══════════════════════════════════════════════════════
 //  MODEL WEIGHTS (exported from trained LinearSVC/Platt)
@@ -1611,14 +1520,25 @@ function lmPerplexity(tokens) {
 }
 
 // ── Approx POS ────────────────────────────────────────
-function approxPOS(word) {
-  const w = word.toLowerCase();
-  if (/ly$/.test(w))  return 'RB';
-  if (/ing$/.test(w)) return 'VBG';
-  if (/ed$/.test(w))  return 'VBD';
-  if (/tion$|ment$|ness$|ity$/.test(w)) return 'NN';
-  if (STOPWORDS.has(w)) return 'FW';
-  return 'NN';
+// ── POS Entropy via compromise.js ─────────────────────
+// Uses the compromise NLP library (loaded from CDN) for real
+// browser-side POS tagging, matching the NLTK tags used during training.
+function computePosEntropy(words) {
+  if (!words.length) return 0;
+  const doc = nlp(words.join(' '));
+  const counts = { NN: 0, VB: 0, JJ: 0, RB: 0, FW: 0 };
+  // compromise exposes category helpers that mirror Penn Treebank coarse tags
+  doc.nouns().forEach(() => counts.NN++);
+  doc.verbs().forEach(() => counts.VB++);
+  doc.adjectives().forEach(() => counts.JJ++);
+  doc.adverbs().forEach(() => counts.RB++);
+  // anything not caught goes into FW (function words / punctuation)
+  const tagged = counts.NN + counts.VB + counts.JJ + counts.RB;
+  counts.FW = Math.max(0, words.length - tagged);
+  const total = words.length;
+  return -Object.values(counts)
+    .filter(c => c > 0)
+    .reduce((s, c) => s + (c / total) * Math.log2(c / total), 0);
 }
 
 // ── Syllable count ────────────────────────────────────
@@ -1671,11 +1591,8 @@ function extractFeatures(text) {
   const bigrams = lower.slice(0,-1).map((w,i)=>w+'_'+lower[i+1]);
   const repScore = bigrams.length > 1 ? 1 - (new Set(bigrams).size / bigrams.length) : 0;
 
-  // POS entropy
-  const posCounts = {};
-  words.forEach(w => { const t = approxPOS(w); posCounts[t] = (posCounts[t]||0)+1; });
-  const posTotal = Object.values(posCounts).reduce((a,b)=>a+b,0);
-  const posEntropy = posTotal > 0 ? -Object.values(posCounts).reduce((s,c) => s + (c/posTotal)*Math.log2(c/posTotal), 0) : 0;
+  // POS entropy — computed via compromise.js for parity with training-time NLTK tags
+  const posEntropy = computePosEntropy(words);
 
   // Readability
   const readability = fleschReadingEase(words, sentences);
@@ -1820,28 +1737,12 @@ async function runAnalysis() {
 
   try {
     let data;
-    if (API_URL) {
-      // Backend mode
-      const resp = await fetch(API_URL + '/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
-      }
-      data = await resp.json();
-      data._source = 'api';
-    } else {
-      // In-browser mode
-      await new Promise(r => setTimeout(r, 10)); // yield to browser
-      const sentences = sentencize(text);
-      const feats     = extractFeatures(text);
-      const result    = predict(feats);
-      const sentData  = predictSentences(sentences);
-      data = { ...result, features: feats, sentences: sentData, text, model_name: 'LinearSVC (Platt)', _source: 'local' };
-    }
+    await new Promise(r => setTimeout(r, 10)); // yield to browser
+    const sentences = sentencize(text);
+    const feats     = extractFeatures(text);
+    const result    = predict(feats);
+    const sentData  = predictSentences(sentences);
+    data = { ...result, features: feats, sentences: sentData, text, model_name: 'LinearSVC (Platt)' };
     data.ts = Date.now();
     lastResult = data;
     renderResults(data);
@@ -1890,14 +1791,6 @@ function renderResults(data) {
   document.getElementById('vVerdict').className = `v-verdict ${cls}`;
   document.getElementById('vSub').textContent = `${pct}% probability of AI generation`;
   document.getElementById('modelBadge').textContent = data.model_name ? `Engine: ${data.model_name}` : '';
-
-  // Source tag
-  const st = document.getElementById('sourceTag');
-  if (data._source === 'api') {
-    st.textContent = 'API'; st.className = 'source-tag remote';
-  } else {
-    st.textContent = 'local'; st.className = 'source-tag local';
-  }
 
   // Confidence bar
   const cf = document.getElementById('confFill');
@@ -2010,7 +1903,6 @@ document.getElementById('copyBtn').addEventListener('click', () => {
     `Verdict:    ${LBL[lastResult.label]} (${Math.round(lastResult.ai_probability*100)}% AI)`,
     `Confidence: ${Math.round((lastResult.confidence||0)*100)}%`,
     `Engine:     ${lastResult.model_name || 'In-browser LinearSVC'}`,
-    `Source:     ${lastResult._source || 'local'}`,
     '',
     'Sentence Breakdown:',
     ...(lastResult.sentences||[]).map(s=>`  [${s.ai_probability !== null ? Math.round(s.ai_probability*100)+'%' : '??'}] ${s.text}`),
@@ -2055,7 +1947,6 @@ function saveHistory(data, text) {
     preview: text.slice(0, 120),
     fullText: text,           // store full text for restore
     ts: Date.now(),
-    source: data._source,
   });
   saveHist(h.slice(0, 10));
   renderHistory();
