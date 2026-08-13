@@ -1,0 +1,28 @@
+name: Export lm.json
+on:
+  workflow_dispatch:
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install nltk
+        run: pip install nltk
+      - name: Download NLTK data
+        run: python -c "import nltk; nltk.download('brown'); nltk.download('punkt'); nltk.download('punkt_tab')"
+      - name: Build LM pkl
+        run: cd backend && python reference_lm.py
+      - name: Export lm.json
+        run: cd backend && python export_lm_json.py
+      - name: Commit lm.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lm.json
+          git diff --staged --quiet || git commit -m "chore: regenerate lm.json [skip ci]"
+          git push
