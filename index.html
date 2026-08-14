@@ -2046,9 +2046,12 @@ async function loadLM() {
     bar.style.width = '15%';
     label.textContent = 'Downloading model weights… (first load ~40 MB, then cached)';
 
-    BERT_PIPE = await pipeline(
-      'text-classification',
-      'Sugum4r4n/ai-content-detector-bert',
+   BERT_PIPE = await pipeline(
+  'text-classification',
+  'Sugum4r4n/ai-content-detector-bert',
+  {
+    quantized: false,
+    model_file_name: 'model_quantized',
       {
         quantized: true,
         progress_callback: (p) => {
