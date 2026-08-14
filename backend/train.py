@@ -1,15 +1,13 @@
 """
-train.py — Build and evaluate the AI-text classifier.
+train.py — Retrain the AI-text classifier on HC3 data.
 
-Pipeline:
-  1. Build dataset (AI samples + Brown corpus human samples)
-  2. Extract 11 features per document
-  3. Compare LR, RF, LinearSVC via 5-fold stratified CV
-  4. Refit winner on full train set, evaluate on held-out test set
-  5. Serialize (scaler + model + metadata) to model/classifier.pkl
+HC3 (Hello-SimpleAI/HC3) contains real ChatGPT responses paired with
+real human answers from Reddit / StackExchange. This replaces the original
+Brown corpus + synthetic AI paragraph approach, which caused the classifier
+to mislabel modern AI text as human.
 
-Usage:
-  python train.py
+Outputs:
+    model/classifier.pkl
 """
 
 import pickle
@@ -18,71 +16,58 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 from features import FEATURE_NAMES, feature_vector
 
 MODEL_DIR = Path(__file__).parent / "model"
-DATA_DIR  = Path(__file__).parent / "data"
-
-CANDIDATES = {
-    "LogisticRegression": LogisticRegression(max_iter=1000),
-    "RandomForest":       RandomForestClassifier(n_estimators=200, random_state=42),
-    "LinearSVC":          CalibratedClassifierCV(LinearSVC(max_iter=5000), cv=5),
-}
+MODEL_DIR.mkdir(exist_ok=True)
 
 
-def build_dataset():
-    """Return (texts, labels) where label=1 → AI, label=0 → Human."""
-    print("[data] Generating AI samples…")
-    from data.ai_samples import generate_ai_paragraphs
-    ai_texts = generate_ai_paragraphs(450, seed=42)
-
-    print("[data] Loading human samples from Brown corpus…")
-    import nltk
-    from nltk.corpus import brown
-
+def build_dataset(n_per_class: int = 2000) -> tuple[list[str], list[int]]:
     try:
-        nltk.data.find("corpora/brown")
-    except LookupError:
-        nltk.download("brown", quiet=True)
+        from datasets import load_dataset
+    except ImportError:
+        raise ImportError("Run: pip install datasets")
 
-    # Use 30% of Brown corpus for training, 70% was used to build the LM
-    # to prevent verbatim memorisation bleeding into perplexity signal.
-    sents = brown.sents()
-    n = len(sents)
-    split = int(n * 0.70)
-    human_pool = sents[split:]
+    import random
+    random.seed(42)
 
-    human_texts = []
-    buf = []
-    for sent in human_pool:
-        buf.extend(sent)
-        if len(buf) >= 60:
-            human_texts.append(" ".join(buf))
-            buf = []
-            if len(human_texts) >= 450:
-                break
+    print("Downloading HC3…")
+    ds = load_dataset("Hello-SimpleAI/HC3", "all", split="train")
 
-    if len(human_texts) < 450:
-        raise RuntimeError("Not enough Brown corpus sentences for 450 human samples.")
+    human_texts, ai_texts = [], []
 
-    texts  = ai_texts + human_texts
-    labels = [1] * len(ai_texts) + [0] * len(human_texts)
-    print(f"[data] Dataset: {len(ai_texts)} AI, {len(human_texts)} human")
-    return texts, labels
+    for row in ds:
+        for ans in row["human_answers"]:
+            if ans and len(ans.split()) >= 40:
+                human_texts.append(ans.strip())
+        for ans in row["chatgpt_answers"]:
+            if ans and len(ans.split()) >= 40:
+                ai_texts.append(ans.strip())
+
+    n = min(n_per_class, len(human_texts), len(ai_texts))
+    human_texts = random.sample(human_texts, n)
+    ai_texts    = random.sample(ai_texts,    n)
+
+    texts  = human_texts + ai_texts
+    labels = [0] * n + [1] * n
+    combined = list(zip(texts, labels))
+    random.shuffle(combined)
+    texts, labels = zip(*combined)
+
+    print(f"Dataset: {n} human + {n} AI = {2 * n} total")
+    return list(texts), list(labels)
 
 
 def extract_all_features(texts: list[str]) -> np.ndarray:
-    print(f"[features] Extracting features for {len(texts)} documents…")
+    print(f"Extracting features for {len(texts)} documents…")
     rows = []
     for i, text in enumerate(texts, 1):
-        if i % 50 == 0:
+        if i % 100 == 0:
             print(f"  {i}/{len(texts)}")
         rows.append(feature_vector(text))
     return np.array(rows, dtype=float)
@@ -90,58 +75,43 @@ def extract_all_features(texts: list[str]) -> np.ndarray:
 
 def main():
     t0 = time.time()
-    MODEL_DIR.mkdir(exist_ok=True)
 
     texts, labels = build_dataset()
     X = extract_all_features(texts)
     y = np.array(labels)
 
-    # 80/20 stratified split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
 
-    # Standardise
-    scaler   = StandardScaler()
-    Xtr_sc   = scaler.fit_transform(X_train)
-    Xte_sc   = scaler.transform(X_test)
+    scaler  = StandardScaler()
+    Xtr_sc  = scaler.fit_transform(X_train)
+    Xte_sc  = scaler.transform(X_test)
 
-    # 5-fold CV to choose best model
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    print("\n[train] 5-fold cross-validation:")
-    best_name, best_auc, best_clf = None, -1, None
-    for name, clf in CANDIDATES.items():
-        aucs = cross_val_score(clf, Xtr_sc, y_train, cv=cv, scoring="roc_auc")
-        print(f"  {name:<22} AUC = {aucs.mean():.4f} ± {aucs.std():.4f}")
-        if aucs.mean() > best_auc:
-            best_auc  = aucs.mean()
-            best_name = name
-            best_clf  = clf
+    print("Training LinearSVC with Platt calibration…")
+    clf = CalibratedClassifierCV(LinearSVC(max_iter=5000), cv=5)
+    clf.fit(Xtr_sc, y_train)
 
-    print(f"\n[train] Winner: {best_name}  (CV AUC = {best_auc:.4f})")
+    y_pred  = clf.predict(Xte_sc)
+    y_proba = clf.predict_proba(Xte_sc)[:, 1]
+    acc = accuracy_score(y_test, y_pred)
+    auc = roc_auc_score(y_test, y_proba)
+    print(f"Test accuracy: {acc:.4f}   AUC: {auc:.4f}")
 
-    # Refit on full training set, evaluate on held-out test
-    best_clf.fit(Xtr_sc, y_train)
-    y_pred  = best_clf.predict(Xte_sc)
-    y_proba = best_clf.predict_proba(Xte_sc)[:, 1]
-    acc  = accuracy_score(y_test, y_pred)
-    auc  = roc_auc_score(y_test, y_proba)
-    print(f"[eval] Test accuracy = {acc:.4f}  AUC = {auc:.4f}")
-
-    # Persist
     bundle = {
-        "model":         best_clf,
-        "scaler":        scaler,
-        "feature_names": FEATURE_NAMES,
-        "model_name":    best_name,
-        "test_accuracy": round(acc, 4),
-        "test_auc":      round(auc, 4),
+        "model":          clf,
+        "scaler":         scaler,
+        "feature_names":  FEATURE_NAMES,
+        "model_name":     "LinearSVC (Platt)",
+        "test_accuracy":  round(acc, 4),
+        "test_auc":       round(auc, 4),
     }
+
     out = MODEL_DIR / "classifier.pkl"
     with open(out, "wb") as f:
         pickle.dump(bundle, f)
-    print(f"[save] Saved to {out}  ({out.stat().st_size // 1024} KB)")
-    print(f"[done] Total time: {time.time() - t0:.1f}s")
+    print(f"Saved → {out}  ({out.stat().st_size // 1024} KB)")
+    print(f"Total time: {time.time() - t0:.1f}s")
 
 
 if __name__ == "__main__":

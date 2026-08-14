@@ -17,7 +17,6 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1629'/%3E%3Ccircle cx='14' cy='14' r='6' fill='none' stroke='%234ade80' stroke-width='2'/%3E%3Cline x1='18.5' y1='18.5' x2='24' y2='24' stroke='%234ade80' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/compromise@14/builds/compromise.min.js"></script>
 <style>
 /* ═══════════════════════════════════
    DESIGN TOKENS — Impeccable-style
@@ -1303,7 +1302,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       </div>
       <div class="feat-grid" id="featGrid"></div>
       <div class="model-row">
-        <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">LinearSVC (Platt)</div></div>
+        <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">DistilBERT</div></div>
         <div class="mstat"><div class="mstat-l">Accuracy</div><div class="mstat-v good" title="On training distribution. Real-world accuracy is lower on short or paraphrased text.">99.4% (train split)</div></div>
         <div class="mstat"><div class="mstat-l">ROC AUC</div><div class="mstat-v good">1.000</div></div>
         <div class="mstat"><div class="mstat-l">Signals</div><div class="mstat-v">11</div></div>
@@ -1358,7 +1357,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
     <div class="step">
       <span class="step-n">03</span>
       <div class="step-t">Score with calibrated model</div>
-      <p>A LinearSVC with Platt calibration turns the signals into a probability you can actually trust.</p>
+      <p>DistilBERT fine-tuned on HC3 turns the text into a probability you can actually trust.</p>
     </div>
     <div class="step">
       <span class="step-n">04</span>
@@ -1447,20 +1446,9 @@ themeBtn.addEventListener('click', () => {
 
 
 // ══════════════════════════════════════════════════════
-//  MODEL WEIGHTS (exported from trained LinearSVC/Platt)
+//  MODEL WEIGHTS — loaded dynamically from model.json
 // ══════════════════════════════════════════════════════
-const MODEL = {
-  featureNames: ['perplexity','burstiness','type_token_ratio','avg_sentence_length','sentence_length_variance','avg_word_length','stopword_ratio','punctuation_density','repetition_score','pos_entropy','readability'],
-  scalerMean:   [13090.426236,5372.342389,0.762804583,20.234597,6.774194,5.486347,0.395729,0.024675,0.030672,3.601180,31.702041],
-  scalerStd:    [6286.855651,3077.529483,0.076126376,8.386350,6.032521,1.036434,0.094700,0.008805,0.031903,0.231116,34.882178],
-  calibrated: [
-    {coef:[-0.559911,-0.153914,-0.259106,-0.994933,-2.004380,1.136561,-1.397860,-0.124994,-0.110790,0.624051,-0.744921],intercept:-1.065241,cal_a:-1.562768,cal_b:-0.522262},
-    {coef:[-0.525798,-0.177918,-0.445426,-1.196635,-1.633156,1.226015,-1.574448,0.001079,0.029658,0.639160,-0.790187],intercept:-0.971031,cal_a:-1.413992,cal_b:-0.396775},
-    {coef:[-0.537990,-0.324551,-0.491179,-1.201585,-1.986856,1.338103,-1.487469,0.028942,-0.285556,0.514853,-0.758273],intercept:-1.027673,cal_a:-1.460194,cal_b:-0.089072},
-    {coef:[-0.020688,-0.291324,-0.157984,-1.055647,-1.985113,1.508054,-1.046108,-0.256981,0.092667,0.542522,-0.334196],intercept:-0.850580,cal_a:-1.491964,cal_b:0.039115},
-    {coef:[-0.662179,-0.218180,-0.240945,-1.153444,-1.971728,1.174067,-1.361904,-0.050571,-0.055552,0.624712,-1.011498],intercept:-1.080352,cal_a:-1.350481,cal_b:-0.625781},
-  ],
-};
+let MODEL = null;
 
 // ══════════════════════════════════════════════════════
 //  SAMPLE TEXTS
@@ -1493,7 +1481,8 @@ const FEAT_META = {
 // ══════════════════════════════════════════════════════
 const STOPWORDS = new Set(['i','me','my','myself','we','our','ours','ourselves','you',"you're","you've","you'll","you'd",'your','yours','yourself','yourselves','he','him','his','himself','she',"she's",'her','hers','herself','it',"it's",'its','itself','they','them','their','theirs','themselves','what','which','who','whom','this','that',"that'll",'these','those','am','is','are','was','were','be','been','being','have','has','had','having','do','does','did','doing','a','an','the','and','but','if','or','because','as','until','while','of','at','by','for','with','about','against','between','into','through','during','before','after','above','below','to','from','up','down','in','out','on','off','over','under','again','further','then','once','here','there','when','where','why','how','all','both','each','few','more','most','other','some','such','no','nor','not','only','own','same','so','than','too','very','s','t','can','will','just','don',"don't",'should',"should've",'now','d','ll','m','o','re','ve','y','ain','aren',"aren't",'couldn',"couldn't",'didn',"didn't",'doesn',"doesn't",'hadn',"hadn't",'hasn',"hasn't",'haven',"haven't",'isn',"isn't",'ma','mightn',"mightn't",'mustn',"mustn't",'needn',"needn't",'shan',"shan't",'shouldn',"shouldn't",'wasn',"wasn't",'weren',"weren't",'won',"won't",'wouldn',"wouldn't"]);
 
-let LM = null;
+let LM        = null;   // kept for perplexity display only
+let BERT_PIPE = null;
 
 function tokenize(text) { return text.toLowerCase().match(/[a-z']+/g) || []; }
 function sentencize(text) {
@@ -1620,6 +1609,7 @@ function featureVector(text) {
 }
 
 function predict(feats) {
+  if (!MODEL) throw new Error('Model weights not loaded yet. Refresh and wait for the loading screen.');
   const raw = MODEL.featureNames.map(n => feats[n]);
   const probs = MODEL.calibrated.map(clf => {
     const std   = raw.map((v,i) => (v - MODEL.scalerMean[i]) / MODEL.scalerStd[i]);
@@ -1633,16 +1623,25 @@ function predict(feats) {
   return { ai_probability: Math.round(ai_probability * 10000) / 10000, confidence: Math.round(confidence * 10000) / 10000, label };
 }
 
-function predictSentences(sentences) {
-  return sentences.map(text => {
-    const words = (text.match(/\b[a-zA-Z']+\b/g) || []).length;
-    if (words < 4) return { text, ai_probability: null };
-    try {
-      const f = extractFeatures(text);
-      const r = predict(f);
-      return { text, ai_probability: r.ai_probability };
-    } catch { return { text, ai_probability: null }; }
-  });
+async function predictSentences(sentences) {
+  if (!BERT_PIPE) return sentences.map(text => ({ text, ai_probability: null }));
+  const valid = sentences.filter(s => s.split(/\s+/).length >= 5);
+  if (!valid.length) return sentences.map(text => ({ text, ai_probability: null }));
+  try {
+    const results = await BERT_PIPE(valid, { truncation: true, max_length: 256 });
+    const map = new Map();
+    valid.forEach((s, i) => {
+      const r = Array.isArray(results[i]) ? results[i] : results;
+      const aiEntry = Array.isArray(r) ? r.find(x => x.label === 'AI') : (r.label === 'AI' ? r : null);
+      map.set(s, aiEntry ? aiEntry.score : 0.5);
+    });
+    return sentences.map(text => ({
+      text,
+      ai_probability: map.has(text) ? map.get(text) : null,
+    }));
+  } catch {
+    return sentences.map(text => ({ text, ai_probability: null }));
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1736,14 +1735,39 @@ async function runAnalysis() {
   }
 
   try {
-    let data;
-    await new Promise(r => setTimeout(r, 10)); // yield to browser
+    await new Promise(r => setTimeout(r, 10));
+
+    if (!BERT_PIPE) {
+      toast('Model still loading — wait for the progress bar to finish.', 'warn');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Analyze`;
+      return;
+    }
+
     const sentences = sentencize(text);
     const feats     = extractFeatures(text);
-    const result    = predict(feats);
-    const sentData  = predictSentences(sentences);
-    data = { ...result, features: feats, sentences: sentData, text, model_name: 'LinearSVC (Platt)' };
-    data.ts = Date.now();
+
+    // BERT verdict
+    const raw  = await BERT_PIPE(text.slice(0, 512), { truncation: true });
+    const arr  = Array.isArray(raw) ? raw : [raw];
+    const aiEntry      = arr.find(x => x.label === 'AI') || arr[1];
+    const ai_probability = aiEntry ? aiEntry.score : 0.5;
+    const confidence     = Math.abs(ai_probability - 0.5) * 2;
+    const label = ai_probability >= 0.60 ? 'likely_ai'
+                : ai_probability <= 0.40 ? 'likely_human'
+                : 'mixed';
+
+    // Sentence-level BERT
+    const sentData = await predictSentences(sentences);
+
+    const data = {
+      ai_probability, confidence, label,
+      features: feats,
+      sentences: sentData,
+      text,
+      model_name: 'DistilBERT (HC3)',
+      ts: Date.now(),
+    };
     lastResult = data;
     renderResults(data);
     saveHistory(data, text);
@@ -1902,7 +1926,7 @@ document.getElementById('copyBtn').addEventListener('click', () => {
     '─'.repeat(40),
     `Verdict:    ${LBL[lastResult.label]} (${Math.round(lastResult.ai_probability*100)}% AI)`,
     `Confidence: ${Math.round((lastResult.confidence||0)*100)}%`,
-    `Engine:     ${lastResult.model_name || 'In-browser LinearSVC'}`,
+    `Engine:     ${lastResult.model_name || 'DistilBERT (HC3)'}`,
     '',
     'Sentence Breakdown:',
     ...(lastResult.sentences||[]).map(s=>`  [${s.ai_probability !== null ? Math.round(s.ai_probability*100)+'%' : '??'}] ${s.text}`),
@@ -2005,40 +2029,48 @@ async function loadLM() {
   const bar     = document.getElementById('loadBar');
   const skip    = document.getElementById('loadSkip');
 
-  const timeout = setTimeout(() => {
-    if (!overlay.classList.contains('done')) {
-      label.textContent = 'Partial load — perplexity signal disabled.';
-      bar.style.width   = '100%';
-      setTimeout(() => overlay.classList.add('done'), 600);
-    }
-  }, 10000);
-
   skip.addEventListener('click', () => {
-    clearTimeout(timeout);
     overlay.classList.add('done');
-    toast('Skipped LM load — perplexity signal disabled.', 'warn', 3500);
+    toast('Skipped — results will be unavailable until model loads.', 'warn', 3000);
   });
 
   try {
-    const res = await fetch('./lm.json');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    bar.style.width   = '40%';
-    label.textContent = 'Parsing model data…';
-    const text = await res.text();
-    bar.style.width   = '75%';
-    label.textContent = 'Initializing…';
-    LM = JSON.parse(text);
-    bar.style.width   = '100%';
-    clearTimeout(timeout);
+    label.textContent = 'Loading DistilBERT model…';
+    bar.style.width = '5%';
+
+    const { pipeline, env } = await import(
+      'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+    );
+    env.allowLocalModels = false;
+
+    bar.style.width = '15%';
+    label.textContent = 'Downloading model weights… (first load ~40 MB, then cached)';
+
+    BERT_PIPE = await pipeline(
+      'text-classification',
+      'Sugum4r4n/ai-content-detector-bert',
+      {
+        quantized: true,
+        progress_callback: (p) => {
+          if (p.status === 'downloading' && p.total) {
+            const pct = 15 + Math.round((p.loaded / p.total) * 80);
+            bar.style.width = pct + '%';
+            const mb = (p.loaded / 1_048_576).toFixed(1);
+            label.textContent = `Downloading… ${mb} MB`;
+          }
+        },
+      }
+    );
+
+    bar.style.width = '100%';
+    label.textContent = 'Ready.';
     setTimeout(() => overlay.classList.add('done'), 300);
-  } catch(err) {
-    clearTimeout(timeout);
-    // 404 or network fail — dismiss quickly, don't block the user
-    label.textContent = 'Running without language model (perplexity disabled).';
-    bar.style.background = 'var(--amber)';
-    bar.style.width      = '100%';
-    setTimeout(() => overlay.classList.add('done'), 700);
-    console.warn('LM load skipped:', err.message);
+  } catch (err) {
+    label.textContent = 'Failed to load model: ' + err.message;
+    bar.style.background = 'var(--red, #f87171)';
+    bar.style.width = '100%';
+    setTimeout(() => overlay.classList.add('done'), 1500);
+    console.error('BERT load failed:', err);
   }
 }
 
