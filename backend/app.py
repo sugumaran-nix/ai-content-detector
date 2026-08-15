@@ -22,6 +22,7 @@ Endpoints:
 import os
 import time
 import uuid
+import re
 import logging
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -40,6 +41,7 @@ MIN_WORDS   = int(os.getenv("MIN_WORDS", 8))
 RATE_LIMIT  = int(os.getenv("RATE_LIMIT", 60))        # requests per window
 RATE_WINDOW = int(os.getenv("RATE_WINDOW", 60))       # seconds
 MAX_BATCH   = int(os.getenv("MAX_BATCH", 10))
+REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 MODEL_DIR   = Path(__file__).parent / "model"
 
 # CORS: comma-separated list in env, default open for local dev
@@ -124,12 +126,17 @@ app.add_middleware(
 # ── Middleware — request ID + timing ─────────────────────────────────────────
 @app.middleware("http")
 async def add_request_metadata(request: Request, call_next):
-    rid   = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
-    t0    = time.perf_counter()
-    resp  = await call_next(request)
-    ms    = round((time.perf_counter() - t0) * 1000, 1)
-    resp.headers["X-Request-ID"]    = rid
-    resp.headers["X-Process-Time"]  = f"{ms}ms"
+    supplied_rid = request.headers.get("X-Request-ID", "")
+    rid = supplied_rid if REQUEST_ID_RE.fullmatch(supplied_rid) else str(uuid.uuid4())[:8]
+    t0 = time.perf_counter()
+    resp = await call_next(request)
+    ms = round((time.perf_counter() - t0) * 1000, 1)
+    resp.headers["X-Request-ID"] = rid
+    resp.headers["X-Process-Time"] = f"{ms}ms"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return resp
 
 
@@ -137,7 +144,7 @@ async def add_request_metadata(request: Request, call_next):
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     if request.method in ("POST",):
-        ip = request.client.host or "unknown"
+        ip = request.client.host if request.client else "unknown"
         if not _check_rate(ip):
             return JSONResponse(
                 status_code=429,
@@ -266,11 +273,11 @@ def analyze(req: AnalyzeRequest):
     _validate_length(req.text)
     try:
         result = inference.predict_document(req.text)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except Exception as exc:
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Model service is not ready.")
+    except Exception:
         log.exception("Inference error")
-        raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
+        raise HTTPException(status_code=500, detail="Inference failed.")
     return result
 
 
@@ -279,11 +286,11 @@ def analyze_lite(req: AnalyzeRequest):
     _validate_length(req.text)
     try:
         result = inference.predict_document(req.text)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except Exception as exc:
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Model service is not ready.")
+    except Exception:
         log.exception("Inference error (lite)")
-        raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
+        raise HTTPException(status_code=500, detail="Inference failed.")
     return LiteResponse(
         label=result["label"],
         ai_probability=result["ai_probability"],

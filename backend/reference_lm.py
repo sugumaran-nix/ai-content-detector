@@ -13,7 +13,7 @@ Outputs:
 """
 
 import math
-import pickle
+import pickle  # nosec B403 - loads only trusted build artifacts
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -61,7 +61,7 @@ class BigramLM:
 
 def load_reference_lm() -> BigramLM:
     with open(MODEL_PATH, "rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # nosec B301 - artifact is produced by the trusted build
 
 
 # ── Build from HC3 human answers ──────────────────────────────────────────────
@@ -73,7 +73,12 @@ def build_reference_lm() -> BigramLM:
         raise ImportError("Run: pip install datasets")
 
     print("Downloading HC3 dataset (human answers)…")
-    ds = load_dataset("Hello-SimpleAI/HC3", "all", split="train")
+    ds = load_dataset(
+        "Hello-SimpleAI/HC3",
+        "all",
+        split="train",
+        revision="4d0ff18143b5a7e1b1e79beb540c04549d1e59d3",
+    )
 
     token_lists = []
     for row in ds:

@@ -20,7 +20,7 @@ Format consumed by index.html predict():
 """
 
 import json
-import pickle
+import pickle  # nosec B403 - loads only trusted build artifacts
 from pathlib import Path
 
 MODEL_PATH = Path(__file__).parent / "model" / "classifier.pkl"
@@ -33,7 +33,7 @@ def main():
 
     print(f"Loading {MODEL_PATH}…")
     with open(MODEL_PATH, "rb") as f:
-        bundle = pickle.load(f)
+        bundle = pickle.load(f)  # nosec B301 - artifact is produced by the trusted build
 
     clf     = bundle["model"]       # CalibratedClassifierCV
     scaler  = bundle["scaler"]      # StandardScaler
@@ -51,6 +51,7 @@ def main():
         })
 
     payload = {
+        "modelName":   bundle.get("model_name", "Local calibrated classifier"),
         "featureNames": names,
         "scalerMean":   scaler.mean_.tolist(),
         "scalerStd":    scaler.scale_.tolist(),

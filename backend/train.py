@@ -10,7 +10,7 @@ Outputs:
     model/classifier.pkl
 """
 
-import pickle
+import pickle  # nosec B403 - writes trusted build artifacts only
 import time
 from pathlib import Path
 
@@ -37,7 +37,12 @@ def build_dataset(n_per_class: int = 2000) -> tuple[list[str], list[int]]:
     random.seed(42)
 
     print("Downloading HC3…")
-    ds = load_dataset("Hello-SimpleAI/HC3", "all", split="train")
+    ds = load_dataset(
+        "Hello-SimpleAI/HC3",
+        "all",
+        split="train",
+        revision="4d0ff18143b5a7e1b1e79beb540c04549d1e59d3",
+    )
 
     human_texts, ai_texts = [], []
 
@@ -50,13 +55,13 @@ def build_dataset(n_per_class: int = 2000) -> tuple[list[str], list[int]]:
                 ai_texts.append(ans.strip())
 
     n = min(n_per_class, len(human_texts), len(ai_texts))
-    human_texts = random.sample(human_texts, n)
-    ai_texts    = random.sample(ai_texts,    n)
+    human_texts = random.sample(human_texts, n)  # nosec B311 - deterministic dataset sampling
+    ai_texts    = random.sample(ai_texts,    n)  # nosec B311 - deterministic dataset sampling
 
     texts  = human_texts + ai_texts
     labels = [0] * n + [1] * n
     combined = list(zip(texts, labels))
-    random.shuffle(combined)
+    random.shuffle(combined)  # nosec B311 - deterministic dataset shuffling
     texts, labels = zip(*combined)
 
     print(f"Dataset: {n} human + {n} AI = {2 * n} total")
@@ -109,7 +114,7 @@ def main():
 
     out = MODEL_DIR / "classifier.pkl"
     with open(out, "wb") as f:
-        pickle.dump(bundle, f)
+        pickle.dump(bundle, f)  # nosec B301 - artifact is produced by the trusted build
     print(f"Saved → {out}  ({out.stat().st_size // 1024} KB)")
     print(f"Total time: {time.time() - t0:.1f}s")
 

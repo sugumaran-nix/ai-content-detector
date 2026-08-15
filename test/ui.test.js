@@ -31,9 +31,16 @@ test("analyzer textarea exposes its supporting guidance", () => {
   assert.match(html, /<p class="input-hint" id="inputHint">For a steadier result/);
 });
 
+test("built-in samples and model metadata match the local classifier", () => {
+  assert.match(html, /id="sampleMixed"/);
+  assert.match(html, /mixed: `Large language models have revolutionized/);
+  assert.match(html, /mixed: `[^`]*I've been trying to fix this bug/);
+  assert.match(html, /<div class="mstat-v">LinearSVC<\/div>/);
+});
+
 test("loading overlay exposes live status and progress semantics", () => {
   assert.match(html, /id="loadLabel" aria-live="polite"/);
-  assert.match(html, /role="progressbar" aria-label="Loading language model"/);
+  assert.match(html, /role="progressbar" aria-label="Loading local analysis engine"/);
   assert.match(html, /id="loadSkip" type="button"/);
 });
 

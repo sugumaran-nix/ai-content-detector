@@ -55,7 +55,41 @@ def test_analyze_endpoint_returns_request_metadata_and_prediction(monkeypatch):
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == "test-request"
     assert "X-Process-Time" in response.headers
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
     assert response.json()["label"] == "likely_human"
+
+
+def test_invalid_request_id_is_replaced(monkeypatch):
+    monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
+    monkeypatch.setattr(app_module.inference, "predict_document", lambda text: {
+        "label": "mixed", "ai_probability": 0.5, "confidence": 0.0,
+        "features": {}, "sentences": [], "model_name": "test-model",
+        "n_words": len(text.split()), "n_sentences": 0,
+    })
+
+    with TestClient(app_module.app) as client:
+        response = client.post("/analyze", headers={"X-Request-ID": "<script>"}, json={"text": LONG_TEXT})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] != "<script>"
+    assert len(response.headers["X-Request-ID"]) == 8
+
+
+def test_inference_errors_do_not_leak_exception_details(monkeypatch):
+    monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
+    monkeypatch.setattr(app_module.inference, "predict_document", lambda text: (_ for _ in ()).throw(RuntimeError("secret backend path")))
+
+    with TestClient(app_module.app) as client:
+        response = client.post("/analyze", json={"text": LONG_TEXT})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Inference failed."
+    assert "secret backend path" not in response.text
 
 
 def test_analyze_endpoint_rejects_blank_and_too_short_text(monkeypatch):

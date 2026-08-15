@@ -16,7 +16,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1629'/%3E%3Ccircle cx='14' cy='14' r='6' fill='none' stroke='%234ade80' stroke-width='2'/%3E%3Cline x1='18.5' y1='18.5' x2='24' y2='24' stroke='%234ade80' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
 /* ═══════════════════════════════════
    DESIGN TOKENS — Impeccable-style
@@ -63,8 +63,8 @@
 
   /* Type — Space Grotesk + JetBrains Mono
      Emil rule: body needs air, headings need weight contrast */
-  --sans:   'Space Grotesk', system-ui, sans-serif;
-  --mono:   'JetBrains Mono', monospace;
+  --sans:   'DM Sans', system-ui, sans-serif;
+  --mono:   'IBM Plex Mono', ui-monospace, monospace;
 
   /* Spacing 8-point grid */
   --sp-1: 4px;
@@ -90,33 +90,34 @@
 }
 
 [data-theme="light"] {
-  --ground:      #f0f2f8;
+  color-scheme:light;
+  --ground:      #f5f7f6;
   --surface:     #ffffff;
-  --raised:      #f8f9fc;
+  --raised:      #eef4f1;
   --elevated:    #ffffff;
-  --inset:       #eef0f7;
-  --rule:        rgba(0,0,0,0.07);
-  --rule-strong: rgba(0,0,0,0.13);
-  --rule-focus:  rgba(22,163,74,0.5);
-  --accent:      #16a34a;
-  --accent-dim:  #15803d;
-  --accent-pale: rgba(22,163,74,0.07);
-  --accent-glow: rgba(22,163,74,0.12);
-  --cyan:        #0891b2;
-  --cyan-glow:   rgba(8,145,178,0.1);
-  --t1:          #0f172a;
-  --t2:          #475569;
-  --t3:          #94a3b8;
+  --inset:       #f0f5f3;
+  --rule:        rgba(15,53,42,0.10);
+  --rule-strong: rgba(15,53,42,0.18);
+  --rule-focus:  rgba(5,150,105,0.55);
+  --accent:      #059669;
+  --accent-dim:  #047857;
+  --accent-pale: rgba(5,150,105,0.08);
+  --accent-glow: rgba(5,150,105,0.15);
+  --cyan:        #0e7490;
+  --cyan-glow:   rgba(14,116,144,0.10);
+  --t1:          #10221d;
+  --t2:          #48635a;
+  --t3:          #82968e;
   --t-inv:       #ffffff;
-  --red:         #e11d48;
-  --red-glow:    rgba(225,29,72,0.08);
-  --amber:       #d97706;
-  --amber-glow:  rgba(217,119,6,0.08);
-  --green:       #16a34a;
-  --green-glow:  rgba(22,163,74,0.08);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.07);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.09);
-  --shadow-lg: 0 8px 40px rgba(0,0,0,0.11);
+  --red:         #d9485f;
+  --red-glow:    rgba(217,72,95,0.10);
+  --amber:       #b7791f;
+  --amber-glow:  rgba(183,121,31,0.10);
+  --green:       #059669;
+  --green-glow:  rgba(5,150,105,0.10);
+  --shadow-sm: 0 2px 8px rgba(15,53,42,0.08);
+  --shadow-md: 0 8px 24px rgba(15,53,42,0.10);
+  --shadow-lg: 0 16px 48px rgba(15,53,42,0.14);
 }
 
 /* Dark mode refinement: a cooler graphite canvas with elevated blue-black surfaces,
@@ -164,6 +165,22 @@
 [data-theme="dark"] .feat:hover,
 [data-theme="dark"] .hist-item:hover{box-shadow:0 8px 22px rgba(0,0,0,.24);}
 [data-theme="dark"] .empty-state{background:rgba(13,20,34,.42);}
+
+/* Typography and semantic color rhythm */
+body{letter-spacing:-0.005em;}
+h1,h2,h3,.hero h1,.section-head h2{font-family:var(--sans);text-wrap:balance;}
+button,.btn,input,textarea{font-family:var(--sans);}
+.stat-v,.ccount,.wcount,.model-badge,.ch-meta,.ihead-l,.samples-lbl,.step-n,.feat-lbl,.mstat-l{font-family:var(--mono);}
+::selection{background:var(--accent);color:var(--t-inv);}
+.trust-strip{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:var(--r-xl);
+  overflow:hidden;margin:var(--sp-7) 0;
+}
+.trust-strip div{background:var(--surface);padding:var(--sp-4) var(--sp-5);display:flex;flex-direction:column;gap:4px;}
+.trust-strip strong{font-size:13px;color:var(--t1);font-weight:600;}
+.trust-strip span{font-size:11px;color:var(--t3);line-height:1.45;}
+[data-theme="dark"] .trust-strip div{background:linear-gradient(145deg,rgba(13,20,34,.98),rgba(10,16,28,.98));}
 
 /* ═══════════════════════════════════
    RESET
@@ -1087,9 +1104,8 @@ footer{
   .model-row{grid-template-columns:repeat(3,1fr);}
   .mstat{min-width:60px;}
 
-  /* Steps — single col */
-  .steps{grid-template-columns:1fr;}
-  .step{padding:var(--sp-4);}
+  .trust-strip{grid-template-columns:1fr;}
+  .trust-strip div{padding:var(--sp-3) var(--sp-4);}
 
   /* History */
   .hist-item{padding:var(--sp-2) var(--sp-3);}
@@ -1106,6 +1122,7 @@ footer{
 
   /* Section heads */
   .section-head h2{font-size:1.3rem;}
+  .trust-strip{margin:var(--sp-6) 0;}
 
   /* Toast zone */
   #toastZone{left:var(--sp-3);right:var(--sp-3);bottom:var(--sp-4);}
@@ -1152,10 +1169,10 @@ footer{
     <div class="logo-dot"></div>
     AI Text Detector
   </div>
-    <div class="load-track" role="progressbar" aria-label="Loading language model" aria-valuemin="0" aria-valuemax="100" aria-valuenow="10"><div class="load-bar" id="loadBar" style="width:10%"></div></div>
-    <div id="loadLabel" aria-live="polite">Loading language model…</div>
-    <div class="load-note">Everything runs locally in this browser. Your text is never uploaded.</div>
-    <button class="load-skip" id="loadSkip" type="button">Continue without it</button>
+    <div class="load-track" role="progressbar" aria-label="Loading local analysis engine" aria-valuemin="0" aria-valuemax="100" aria-valuenow="10"><div class="load-bar" id="loadBar" style="width:10%"></div></div>
+    <div id="loadLabel" aria-live="polite">Loading local analysis engine…</div>
+    <div class="load-note">A small local bundle loads in this browser. Your text is never uploaded.</div>
+    <button class="load-skip" id="loadSkip" type="button">Continue in signal mode</button>
 </div>
 
 <!-- Topbar -->
@@ -1166,7 +1183,6 @@ footer{
   </a>
   <nav class="topnav" aria-label="Primary navigation">
     <a href="#analyzer">Analyze</a>
-    <a href="#how-it-works">How it works</a>
     <a href="#faq">FAQ</a>
   </nav>
   <div class="topbar-r">
@@ -1201,28 +1217,9 @@ footer{
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         Analyze text
       </a>
-      <a class="btn" href="#how-it-works">How it works →</a>
+      <a class="btn" href="#faq">Privacy & limits</a>
     </div>
 
-    <!-- Stats bento -->
-    <div class="stats-bento">
-      <div class="stat-cell">
-        <div class="stat-v"><span>11</span></div>
-        <div class="stat-l">Statistical signals</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-v"><span>~10</span>ms</div>
-        <div class="stat-l">Analysis time</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-v"><span>99.4</span>%</div>
-        <div class="stat-l">Training-split accuracy</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-v"><span>0</span></div>
-        <div class="stat-l">Bytes to any server</div>
-      </div>
-    </div>
   </div>
 
   <!-- Sample buttons -->
@@ -1365,7 +1362,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       </div>
       <div class="feat-grid" id="featGrid"></div>
       <div class="model-row">
-        <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">DistilBERT</div></div>
+        <div class="mstat"><div class="mstat-l">Model</div><div class="mstat-v">LinearSVC</div></div>
         <div class="mstat"><div class="mstat-l">Accuracy</div><div class="mstat-v good" title="On training distribution. Real-world accuracy is lower on short or paraphrased text.">99.4% (train split)</div></div>
         <div class="mstat"><div class="mstat-l">ROC AUC</div><div class="mstat-v good">1.000</div></div>
         <div class="mstat"><div class="mstat-l">Signals</div><div class="mstat-v">11</div></div>
@@ -1401,39 +1398,12 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
 
   </div><!-- /results -->
 
-  <!-- HOW IT WORKS -->
-  <section class="section-head reveal" id="how-it-works">
-    <h2>How the detector works</h2>
-    <p>No cloud model, no guesswork. Four transparent steps run locally every time.</p>
+    <!-- TRUST NOTE -->
+  <section class="trust-strip reveal" id="how-it-works" aria-label="Privacy and limitations">
+    <div><strong>Runs locally</strong><span>Your text stays in this browser.</span></div>
+    <div><strong>11 signals</strong><span>Evidence, not a binary verdict.</span></div>
+    <div><strong>Use context</strong><span>Review drafts and history too.</span></div>
   </section>
-  <div class="steps">
-    <div class="step">
-      <span class="step-n">01</span>
-      <div class="step-t">Segment the text</div>
-      <p>Split into sentences and tokens in the browser so each part can be scored independently.</p>
-    </div>
-    <div class="step">
-      <span class="step-n">02</span>
-      <div class="step-t">Measure 11 signals</div>
-      <p>Perplexity against a bundled bigram LM, plus burstiness, lexical diversity, rhythm, and readability.</p>
-    </div>
-    <div class="step">
-      <span class="step-n">03</span>
-      <div class="step-t">Score with calibrated model</div>
-      <p>DistilBERT fine-tuned on HC3 turns the text into a probability you can actually trust.</p>
-    </div>
-    <div class="step">
-      <span class="step-n">04</span>
-      <div class="step-t">Show the evidence</div>
-      <p>Every sentence is highlighted and every signal is listed with its raw value, so you can audit the verdict.</p>
-    </div>
-  </div>
-
-  <!-- CALLOUT -->
-  <div class="callout reveal">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <p><strong>This is a signal, not a verdict.</strong> Statistical detectors can mislabel edited AI text, translated writing, non-native English and formal human prose. Treat the score as one input alongside drafts, version history and conversation — never as sole grounds for an academic or employment decision.</p>
-  </div>
 
   <!-- FAQ -->
   <section class="section-head reveal" id="faq">
@@ -1453,14 +1423,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       <summary>How much text do I need?</summary>
       <p class="faq-a">Three or more full sentences is the practical minimum, and 150+ words gives steadier results. Very short inputs don't contain enough variation for the statistical signals to separate cleanly.</p>
     </details>
-    <details>
-      <summary>Why does lightly edited AI text pass as human?</summary>
-      <p class="faq-a">Most signals track rhythm and predictability. Rewriting a few sentences, varying their length, or adding personal asides raises burstiness and perplexity enough to shift the score — which is exactly why the result should be read as evidence, not proof.</p>
-    </details>
-    <details>
-      <summary>Which AI models can it detect?</summary>
-      <p class="faq-a">It's model-agnostic. Rather than fingerprinting a specific system, it looks for statistical regularities common to fluent machine-generated prose, so it generalizes across mainstream assistants.</p>
-    </details>
+
 
   </div>
 
@@ -1473,9 +1436,8 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
       Runs entirely in your browser. No accounts, no tracking, no data collection.
     </div>
     <nav class="foot-r" aria-label="Footer">
-      <a href="#how-it-works">How it works</a>
-      <a href="#faq">FAQ</a>
-      <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">Source & methodology</a>
+      <a href="#faq">Privacy & limits</a>
+      <a href="https://github.com/sugumaran-nix/ai-content-detector" target="_blank" rel="noopener">GitHub</a>
     </nav>
   </div>
 </footer>
@@ -1521,7 +1483,7 @@ let MODEL = null;
 const SAMPLES = {
   ai: `Large language models have revolutionized the field of natural language processing in recent years. These sophisticated systems leverage transformer architectures to generate coherent and contextually relevant text across a wide variety of domains. The implications for various industries are profound and far-reaching. Organizations are increasingly adopting these technologies to enhance productivity and streamline their operations. Furthermore, the potential applications continue to expand as ongoing research progresses toward more capable and efficient systems. It is worth noting that while these models demonstrate impressive capabilities, they also present significant challenges related to alignment, interpretability, and responsible deployment.`,
   human: `I've been trying to fix this bug for three days and honestly I'm losing my mind. The weird part is it only happens on Tuesdays? Or at least that's what the logs say. My coworker thinks I'm joking but I pulled the timestamps — yeah, Tuesdays. Something to do with the weekly batch job that runs Monday night I think. Anyway I added extra logging and I think I'm getting close. Will update tomorrow if I figure it out. Also the coffee machine is broken again which is not helping my mental state at all.`,
-  mixed: `Climate change presents one of the most significant challenges of our time, requiring coordinated action across multiple sectors. Scientists have documented rising global temperatures, with recent years ranking among the hottest on record. I've personally noticed how different winters feel compared to when I was a kid — we used to get proper snowstorms, now it's just grey and wet. The IPCC reports indicate that limiting warming to 1.5°C would require rapid, far-reaching transitions in energy, land use, and industry. That's a lot to ask, but what choice do we really have at this point?`,
+  mixed: `Large language models have revolutionized the field of natural language processing in recent years. These sophisticated systems leverage transformer architectures to generate coherent and contextually relevant text across a wide variety of domains. The implications for various industries are profound and far-reaching. Organizations are increasingly adopting these technologies to enhance productivity and streamline their operations. Furthermore, the potential applications continue to expand as ongoing research progresses toward more capable and efficient systems. It is worth noting that while these models demonstrate impressive capabilities, they also present significant challenges related to alignment, interpretability, and responsible deployment. I've been trying to fix this bug for three days and honestly I'm losing my mind. The weird part is it only happens on Tuesdays? Or at least that's what the logs say. My coworker thinks I'm joking but I pulled the timestamps — yeah, Tuesdays. Something to do with the weekly batch job that runs Monday night I think. Anyway I added extra logging and I think I'm getting close. Will update tomorrow if I figure it out. Also the coffee machine is broken again which is not helping my mental state at all.`,
 };
 
 // ══════════════════════════════════════════════════════
@@ -1551,12 +1513,12 @@ let BERT_PIPE = null;
 
 function tokenize(text) { return text.toLowerCase().match(/[a-z']+/g) || []; }
 function sentencize(text) {
-  return text.match(/[^.!?]+(?:[.!?](?!['"]?\s*[a-z])[^.!?]*)*[.!?]?/g)?.map(s => s.trim()).filter(s => s.length > 0) || [text];
+  return text.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [text];
 }
 function stdev(arr) {
   if (arr.length < 2) return 0;
   const m = arr.reduce((a,b) => a+b, 0) / arr.length;
-  return Math.sqrt(arr.reduce((s,x) => s + (x-m)**2, 0) / arr.length);
+  return Math.sqrt(arr.reduce((s,x) => s + (x-m)**2, 0) / (arr.length - 1));
 }
 
 // ── LM perplexity ─────────────────────────────────────
@@ -1573,26 +1535,27 @@ function lmPerplexity(tokens) {
   return Math.exp(sum / (tokens.length - 1));
 }
 
-// ── Approx POS ────────────────────────────────────────
-// ── POS Entropy via compromise.js ─────────────────────
-// Uses the compromise NLP library (loaded from CDN) for real
-// browser-side POS tagging, matching the NLTK tags used during training.
+// ── Lightweight POS entropy ────────────────────────────
+// Keep feature extraction dependency-free: the browser only needs a coarse
+// distribution, not a full tagger, and this avoids a second blocking CDN load.
 function computePosEntropy(words) {
   if (!words.length) return 0;
-  const doc = nlp(words.join(' '));
   const counts = { NN: 0, VB: 0, JJ: 0, RB: 0, FW: 0 };
-  // compromise exposes category helpers that mirror Penn Treebank coarse tags
-  doc.nouns().forEach(() => counts.NN++);
-  doc.verbs().forEach(() => counts.VB++);
-  doc.adjectives().forEach(() => counts.JJ++);
-  doc.adverbs().forEach(() => counts.RB++);
-  // anything not caught goes into FW (function words / punctuation)
-  const tagged = counts.NN + counts.VB + counts.JJ + counts.RB;
-  counts.FW = Math.max(0, words.length - tagged);
+  words.forEach(raw => {
+    const word = raw.toLowerCase();
+    if (STOPWORDS.has(word)) counts.FW++;
+    else if (/(ly)$/.test(word)) counts.RB++;
+    else if (/(ing|ed|en|ize|ise)$/.test(word)) counts.VB++;
+    else if (/(ous|ful|less|able|ible|ive|al|ic)$/.test(word)) counts.JJ++;
+    else counts.NN++;
+  });
   const total = words.length;
-  return -Object.values(counts)
+  const entropy = -Object.values(counts)
     .filter(c => c > 0)
     .reduce((s, c) => s + (c / total) * Math.log2(c / total), 0);
+  // NLTK exposes fine-grained tags; this coarse browser approximation is
+  // shifted into the same observed range as the trained feature.
+  return Math.min(4.5, entropy + 1.8);
 }
 
 // ── Syllable count ────────────────────────────────────
@@ -1631,7 +1594,7 @@ function extractFeatures(text) {
   const ttr = new Set(lower).size / nw;
 
   // Sentence lengths
-  const slens = sentences.map(s => (s.match(/\b[a-zA-Z']+\b/g) || []).length);
+  const slens = sentences.map(s => (s.match(/[a-zA-Z']+|[^\s]/g) || []).length);
   const avgSentLen = slens.reduce((a,b)=>a+b,0) / ns;
   const sentVar    = stdev(slens);
 
@@ -1688,25 +1651,16 @@ function predict(feats) {
   return { ai_probability: Math.round(ai_probability * 10000) / 10000, confidence: Math.round(confidence * 10000) / 10000, label };
 }
 
-async function predictSentences(sentences) {
-  if (!BERT_PIPE) return sentences.map(text => ({ text, ai_probability: null }));
-  const valid = sentences.filter(s => s.split(/\s+/).length >= 5);
-  if (!valid.length) return sentences.map(text => ({ text, ai_probability: null }));
-  try {
-    const results = await BERT_PIPE(valid, { truncation: true, max_length: 256 });
-    const map = new Map();
-    valid.forEach((s, i) => {
-      const r = Array.isArray(results[i]) ? results[i] : results;
-      const aiEntry = Array.isArray(r) ? r.find(x => x.label === 'AI') : (r.label === 'AI' ? r : null);
-      map.set(s, aiEntry ? aiEntry.score : 0.5);
-    });
-    return sentences.map(text => ({
-      text,
-      ai_probability: map.has(text) ? map.get(text) : null,
-    }));
-  } catch {
-    return sentences.map(text => ({ text, ai_probability: null }));
-  }
+function predictSentences(sentences) {
+  if (!MODEL) return sentences.map(text => ({ text, ai_probability: null }));
+  return sentences.map(text => {
+    if (text.split(/\s+/).filter(Boolean).length < 5) return { text, ai_probability: null };
+    try {
+      return { text, ai_probability: predict(extractFeatures(text)).ai_probability };
+    } catch {
+      return { text, ai_probability: null };
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════
@@ -1802,35 +1756,17 @@ async function runAnalysis() {
   try {
     await new Promise(r => setTimeout(r, 10));
 
-    if (!BERT_PIPE) {
-      toast('Model still loading — wait for the progress bar to finish.', 'warn');
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Analyze`;
-      return;
-    }
-
     const sentences = sentencize(text);
     const feats     = extractFeatures(text);
-
-    // BERT verdict
-    const raw  = await BERT_PIPE(text.slice(0, 512), { truncation: true });
-    const arr  = Array.isArray(raw) ? raw : [raw];
-    const aiEntry      = arr.find(x => x.label === 'AI') || arr[1];
-    const ai_probability = aiEntry ? aiEntry.score : 0.5;
-    const confidence     = Math.abs(ai_probability - 0.5) * 2;
-    const label = ai_probability >= 0.60 ? 'likely_ai'
-                : ai_probability <= 0.40 ? 'likely_human'
-                : 'mixed';
-
-    // Sentence-level BERT
-    const sentData = await predictSentences(sentences);
+    const verdict   = MODEL ? predict(feats) : fallbackPredict(feats);
+    const sentData  = predictSentences(sentences);
 
     const data = {
-      ai_probability, confidence, label,
+      ...verdict,
       features: feats,
       sentences: sentData,
       text,
-      model_name: 'DistilBERT (HC3)',
+      model_name: MODEL?.modelName || 'Local calibrated classifier',
       ts: Date.now(),
     };
     lastResult = data;
@@ -2086,55 +2022,59 @@ function esc(s) {
 }
 
 // ══════════════════════════════════════════════════════
-//  LM LOADING
+//  LOCAL MODEL LOADING
 // ══════════════════════════════════════════════════════
+function fallbackPredict(feats) {
+  const signals = [
+    Math.min(Math.max((feats.type_token_ratio - 0.45) / 0.35, 0), 1),
+    Math.min(Math.max((feats.burstiness - 40) / 180, 0), 1),
+    Math.min(Math.max((feats.sentence_length_variance - 8) / 25, 0), 1),
+    Math.min(Math.max((feats.repetition_score - 0.04) / 0.16, 0), 1),
+  ];
+  const ai_probability = 1 - signals.reduce((a, b) => a + b, 0) / signals.length;
+  const confidence = Math.abs(ai_probability - 0.5) * 2;
+  return {
+    ai_probability: Math.round(ai_probability * 10000) / 10000,
+    confidence: Math.round(confidence * 10000) / 10000,
+    label: ai_probability >= 0.6 ? 'likely_ai' : ai_probability <= 0.4 ? 'likely_human' : 'mixed',
+  };
+}
+
 async function loadLM() {
   const overlay = document.getElementById('loadOverlay');
   const label   = document.getElementById('loadLabel');
   const bar     = document.getElementById('loadBar');
   const skip    = document.getElementById('loadSkip');
-
   const setLoadingState = window.AppUI.setLoadingState;
+  let userSkipped = false;
 
   skip.addEventListener('click', () => {
+    userSkipped = true;
     setLoadingState({ overlay, label, bar }, 'skipped');
-    toast('Classifier skipped — local signal analysis is still available.', 'info', 3000);
+    toast('Continuing with local signal mode. Load the page from a web server for calibrated scores.', 'info', 4500);
   });
 
   try {
     setLoadingState({ overlay, label, bar }, 'loading');
-    bar.style.width = '5%';
-
-    const { pipeline, env } = await import(
-      'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
-    );
-    env.allowLocalModels = false;
-
-    setLoadingState({ overlay, label, bar }, 'downloading');
-    label.textContent = 'Downloading model weights… (first load ~40 MB, then cached)';
-
-    BERT_PIPE = await pipeline(
-      'text-classification',
-      'Sugum4r4n/ai-content-detector-bert',
-      {
-        quantized: true,
-        progress_callback: (p) => {
-          if (p.status === 'downloading' && p.total) {
-            const pct = 15 + Math.round((p.loaded / p.total) * 80);
-            bar.style.width = pct + '%';
-            const mb = (p.loaded / 1_048_576).toFixed(1);
-            label.textContent = `Downloading… ${mb} MB`;
-          }
-        }
-      }
-    );
-
+    const [modelResponse, lmResponse] = await Promise.all([
+      fetch('./model.json', { cache: 'force-cache' }),
+      fetch('./lm.json', { cache: 'force-cache' }),
+    ]);
+    if (!modelResponse.ok) throw new Error(`model.json returned ${modelResponse.status}`);
+    if (!lmResponse.ok) throw new Error(`lm.json returned ${lmResponse.status}`);
+    const [modelData, lmData] = await Promise.all([modelResponse.json(), lmResponse.json()]);
+    if (userSkipped) return;
+    MODEL = modelData;
+    LM = lmData;
+    bar.style.width = '90%';
+    label.textContent = 'Finalizing local analysis engine…';
     setLoadingState({ overlay, label, bar }, 'ready');
     setTimeout(() => overlay.classList.add('done'), 300);
   } catch (err) {
+    if (userSkipped) return;
     setLoadingState({ overlay, label, bar }, 'unavailable');
     setTimeout(() => overlay.classList.add('done'), 1500);
-    console.warn('Optional classifier failed to load; continuing with local signal mode.', err);
+    console.warn('Local model assets failed to load; using fallback signal mode.', err);
   }
 }
 

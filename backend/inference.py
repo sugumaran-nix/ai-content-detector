@@ -13,7 +13,7 @@ Improvements over v1:
 """
 
 import logging
-import pickle
+import pickle  # nosec B403 - loads only trusted build artifacts
 from pathlib import Path
 from typing import TypedDict
 
@@ -58,7 +58,7 @@ def get_bundle() -> dict:
                 "Run train.py or restart the server to trigger auto-build."
             )
         with open(path, "rb") as fh:
-            _BUNDLE = pickle.load(fh)
+            _BUNDLE = pickle.load(fh)  # nosec B301 - artifact is produced by the trusted build
         log.info("Classifier bundle loaded from %s", path)
     return _BUNDLE
 
