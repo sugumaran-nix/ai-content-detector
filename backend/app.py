@@ -151,19 +151,36 @@ async def rate_limit_middleware(request: Request, call_next):
 class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_CHARS, description="Text to analyze (max 8,000 chars)")
 
-    @field_validator("text")
+    @field_validator("text", mode="before")
     @classmethod
-    def strip_text(cls, v: str) -> str:
-        return v.strip()
+    def normalize_text(cls, v: str) -> str:
+        if not isinstance(v, str):
+            raise ValueError("Text must be a string.")
+        value = v.strip()
+        if not value:
+            raise ValueError("Text cannot be blank.")
+        return value
 
 
 class BatchRequest(BaseModel):
     texts: list[str] = Field(..., min_length=1, max_length=MAX_BATCH, description=f"Up to {MAX_BATCH} texts")
 
-    @field_validator("texts")
+    @field_validator("texts", mode="before")
     @classmethod
-    def strip_texts(cls, vs: list[str]) -> list[str]:
-        return [v.strip() for v in vs]
+    def normalize_texts(cls, vs: list[str]) -> list[str]:
+        if not isinstance(vs, list):
+            raise ValueError("Texts must be provided as a list.")
+        normalized = []
+        for index, value in enumerate(vs):
+            if not isinstance(value, str):
+                raise ValueError(f"Text at index {index} must be a string.")
+            text = value.strip()
+            if not text:
+                raise ValueError(f"Text at index {index} cannot be blank.")
+            if len(text) > MAX_CHARS:
+                raise ValueError(f"Text at index {index} exceeds the {MAX_CHARS}-character limit.")
+            normalized.append(text)
+        return normalized
 
 
 class SentenceResult(BaseModel):
@@ -199,6 +216,7 @@ class BatchItemResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _validate_length(text: str) -> None:
+    text = text.strip()
     words = len(text.split())
     if words < MIN_WORDS:
         raise HTTPException(
@@ -221,8 +239,12 @@ def health():
             "lm_loaded":  lm_loaded,
             "version":    app.version,
         }
-    except Exception as exc:
-        return JSONResponse(status_code=503, content={"status": "unavailable", "detail": str(exc)})
+    except Exception:
+        log.exception("Health check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "detail": "Model service is not ready."},
+        )
 
 
 @app.get("/model-info", summary="Classifier metadata and test metrics")
