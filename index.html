@@ -119,6 +119,52 @@
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.11);
 }
 
+/* Dark mode refinement: a cooler graphite canvas with elevated blue-black surfaces,
+   mint interaction states, and a restrained cyan data accent. */
+[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#070b13;
+  --surface:#0d1422;
+  --raised:#121c2d;
+  --elevated:#19263a;
+  --inset:#080e19;
+  --rule:rgba(148,163,184,.16);
+  --rule-strong:rgba(148,163,184,.28);
+  --rule-focus:rgba(110,231,183,.72);
+  --accent:#6ee7b7;
+  --accent-dim:#34d399;
+  --accent-pale:rgba(110,231,183,.10);
+  --accent-glow:rgba(110,231,183,.22);
+  --cyan:#67e8f9;
+  --cyan-glow:rgba(103,232,249,.16);
+  --t1:#f7fbff;
+  --t2:#a8b7ca;
+  --t3:#6c7d95;
+  --t-inv:#07110f;
+  --shadow-sm:0 2px 10px rgba(0,0,0,.34);
+  --shadow-md:0 12px 34px rgba(0,0,0,.38);
+  --shadow-lg:0 20px 60px rgba(0,0,0,.48);
+}
+[data-theme="dark"] body::before{
+  background-image:
+    radial-gradient(ellipse 72% 54% at 12% -8%,rgba(110,231,183,.09) 0%,transparent 62%),
+    radial-gradient(ellipse 64% 52% at 92% 108%,rgba(103,232,249,.07) 0%,transparent 60%),
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:auto,auto,40px 40px,40px 40px;
+}
+[data-theme="dark"] .topbar{background:rgba(7,11,19,.84);box-shadow:0 1px 0 rgba(110,231,183,.04),0 8px 24px rgba(0,0,0,.18);}
+[data-theme="dark"] .input-card,
+[data-theme="dark"] .verdict-card,
+[data-theme="dark"] .card{background:linear-gradient(145deg,rgba(13,20,34,.98),rgba(10,16,28,.98));}
+[data-theme="dark"] .ta-wrap{box-shadow:inset 0 1px 0 rgba(255,255,255,.025);}
+[data-theme="dark"] .btn-primary{box-shadow:0 8px 24px rgba(52,211,153,.16);}
+[data-theme="dark"] .btn-primary:hover:not(:disabled){box-shadow:0 10px 28px rgba(52,211,153,.28);}
+[data-theme="dark"] .sample-btn:hover,
+[data-theme="dark"] .feat:hover,
+[data-theme="dark"] .hist-item:hover{box-shadow:0 8px 22px rgba(0,0,0,.24);}
+[data-theme="dark"] .empty-state{background:rgba(13,20,34,.42);}
+
 /* ═══════════════════════════════════
    RESET
 ═══════════════════════════════════ */
@@ -1437,6 +1483,7 @@ Accuracy improves with length — aim for at least 3 full sentences."></textarea
 <div id="tip"></div>
 <div id="toastZone"></div>
 
+<script src="ui-state.js"></script>
 <script>
 'use strict';
 // ══════════════════════════════════════════════════════
@@ -1447,6 +1494,7 @@ const themeBtn = document.getElementById('themeBtn');
 
 function applyTheme(theme) {
   html.setAttribute('data-theme', theme);
+  themeBtn.setAttribute('aria-pressed', String(theme === 'dark'));
   document.getElementById('iconSun').style.display  = theme === 'dark'  ? '' : 'none';
   document.getElementById('iconMoon').style.display = theme === 'light' ? '' : 'none';
   localStorage.setItem('theme', theme);
@@ -2046,13 +2094,15 @@ async function loadLM() {
   const bar     = document.getElementById('loadBar');
   const skip    = document.getElementById('loadSkip');
 
+  const setLoadingState = window.AppUI.setLoadingState;
+
   skip.addEventListener('click', () => {
-    overlay.classList.add('done');
+    setLoadingState({ overlay, label, bar }, 'skipped');
     toast('Classifier skipped — local signal analysis is still available.', 'info', 3000);
   });
 
   try {
-    label.textContent = 'Loading DistilBERT model…';
+    setLoadingState({ overlay, label, bar }, 'loading');
     bar.style.width = '5%';
 
     const { pipeline, env } = await import(
@@ -2060,7 +2110,7 @@ async function loadLM() {
     );
     env.allowLocalModels = false;
 
-    bar.style.width = '15%';
+    setLoadingState({ overlay, label, bar }, 'downloading');
     label.textContent = 'Downloading model weights… (first load ~40 MB, then cached)';
 
     BERT_PIPE = await pipeline(
@@ -2079,13 +2129,10 @@ async function loadLM() {
       }
     );
 
-    bar.style.width = '100%';
-    label.textContent = 'Ready.';
+    setLoadingState({ overlay, label, bar }, 'ready');
     setTimeout(() => overlay.classList.add('done'), 300);
   } catch (err) {
-    label.textContent = 'Classifier unavailable — local signal mode is ready.';
-    bar.style.background = 'var(--amber, #fbbf24)';
-    bar.style.width = '100%';
+    setLoadingState({ overlay, label, bar }, 'unavailable');
     setTimeout(() => overlay.classList.add('done'), 1500);
     console.warn('Optional classifier failed to load; continuing with local signal mode.', err);
   }
