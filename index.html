@@ -217,7 +217,9 @@ body::before{
 }
 
 .topbar-r{display:flex;align-items:center;gap:var(--sp-2);}
-
+.topnav{display:flex;align-items:center;gap:var(--sp-1);margin-left:auto;margin-right:var(--sp-3);}
+.topnav a{font-size:11px;color:var(--t3);text-decoration:none;padding:6px 9px;border-radius:var(--r-sm);transition:color 150ms ease-out,background 150ms ease-out;}
+.topnav a:hover,.topnav a:focus-visible{color:var(--t1);background:var(--raised);}
 
 .theme-btn{
   width:32px;height:32px;border-radius:var(--r-sm);
@@ -263,11 +265,14 @@ body::before{
 }
 #loadLabel{font-size:12px;color:var(--t2);}
 .load-skip{
-  font-size:11px;color:var(--t3);cursor:pointer;
+  font-size:11px;color:var(--t2);cursor:pointer;
+  border:1px solid var(--rule-strong);border-radius:var(--r-sm);
+  padding:7px 12px;background:var(--raised);
   transition:color 150ms ease-out;
   text-decoration:underline;text-underline-offset:3px;
 }
-.load-skip:hover{color:var(--t2);}
+.load-skip:hover{color:var(--t1);background:var(--elevated);}
+.load-note{font-size:11px;color:var(--t3);max-width:260px;text-align:center;line-height:1.5;}
 
 /* ═══════════════════════════════════
    LAYOUT
@@ -372,6 +377,7 @@ body::before{
   margin-bottom:var(--sp-4);flex-wrap:wrap;
 }
 .samples-lbl{font-size:12px;color:var(--t3);white-space:nowrap;font-family:var(--mono);}
+.samples-help{font-size:11px;color:var(--t3);margin-left:auto;}
 .sample-btn{
   font-size:11px;font-weight:500;
   padding:4px 12px;border-radius:5px;cursor:pointer;
@@ -483,6 +489,7 @@ textarea{
 }
 textarea::placeholder{color:var(--t3);}
 
+.input-hint{font-size:11px;color:var(--t3);margin-top:var(--sp-2);}
 .ifoot{
   display:flex;align-items:center;justify-content:space-between;
   margin-top:var(--sp-3);flex-wrap:wrap;gap:var(--sp-2);
@@ -990,7 +997,9 @@ footer{
 
   /* Topbar — tighter, no github text */
   .topbar{padding:0 var(--sp-3);}
+  .topnav{display:none;}
   .gh-link span{display:none;} /* hide "GitHub" text, keep icon */
+  .samples-help{display:none;}
 
   /* Stats — 2 cols */
   .stats-bento{grid-template-columns:repeat(2,1fr);}
@@ -1097,9 +1106,10 @@ footer{
     <div class="logo-dot"></div>
     AI Text Detector
   </div>
-  <div class="load-track"><div class="load-bar" id="loadBar" style="width:10%"></div></div>
-  <div id="loadLabel">Loading language model…</div>
-  <div class="load-skip" id="loadSkip">Continue without it (lower accuracy)</div>
+    <div class="load-track" role="progressbar" aria-label="Loading language model" aria-valuemin="0" aria-valuemax="100" aria-valuenow="10"><div class="load-bar" id="loadBar" style="width:10%"></div></div>
+    <div id="loadLabel" aria-live="polite">Loading language model…</div>
+    <div class="load-note">Everything runs locally in this browser. Your text is never uploaded.</div>
+    <button class="load-skip" id="loadSkip" type="button">Continue without it</button>
 </div>
 
 <!-- Topbar -->
@@ -1108,6 +1118,11 @@ footer{
     <div class="logo-mark"><div class="logo-dot"></div></div>
     AI<span style="color:var(--t3);font-weight:400;">Text</span>Detector
   </a>
+  <nav class="topnav" aria-label="Primary navigation">
+    <a href="#analyzer">Analyze</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#faq">FAQ</a>
+  </nav>
   <div class="topbar-r">
     <button class="theme-btn" id="themeBtn" aria-label="Toggle theme">
       <svg id="iconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -1166,10 +1181,11 @@ footer{
 
   <!-- Sample buttons -->
   <div class="samples-row">
-    <span class="samples-lbl">Try an example:</span>
+    <span class="samples-lbl">Quick start</span>
     <button class="sample-btn ai-s" id="sampleAI">AI-written</button>
     <button class="sample-btn human-s" id="sampleHuman">Human-written</button>
     <button class="sample-btn mixed-s" id="sampleMixed">Human + AI mix</button>
+    <span class="samples-help">Examples are loaded locally</span>
   </div>
 
   <!-- Input card -->
@@ -1179,17 +1195,18 @@ footer{
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         Text to analyze
       </span>
-      <span class="ihead-r">or drop a .txt file · Ctrl+Enter to run</span>
+      <span class="ihead-r">Drop a .txt file · Ctrl+Enter to run</span>
     </div>
     <div class="ta-wrap" id="taWrap">
       <div class="drag-ol" id="dragOl">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
         Release to load
       </div>
-      <textarea id="txtIn" aria-label="Text to analyze" maxlength="8000" placeholder="Paste an essay, article, email, or answer here…
+      <textarea id="txtIn" aria-label="Text to analyze" aria-describedby="inputHint" maxlength="8000" placeholder="Paste an essay, article, email, or answer here…
 
 Accuracy improves with length — aim for at least 3 full sentences."></textarea>
     </div>
+    <p class="input-hint" id="inputHint">For a steadier result, use at least 3 sentences or 150 words.</p>
     <div class="ifoot">
       <div class="counters">
         <span class="ccount" id="ccount">0 / 8,000</span>
@@ -2031,7 +2048,7 @@ async function loadLM() {
 
   skip.addEventListener('click', () => {
     overlay.classList.add('done');
-    toast('Skipped — results will be unavailable until model loads.', 'warn', 3000);
+    toast('Classifier skipped — local signal analysis is still available.', 'info', 3000);
   });
 
   try {
@@ -2046,12 +2063,9 @@ async function loadLM() {
     bar.style.width = '15%';
     label.textContent = 'Downloading model weights… (first load ~40 MB, then cached)';
 
-   BERT_PIPE = await pipeline(
-  'text-classification',
-  'Sugum4r4n/ai-content-detector-bert',
-  {
-    quantized: false,
-    model_file_name: 'model_quantized',
+    BERT_PIPE = await pipeline(
+      'text-classification',
+      'Sugum4r4n/ai-content-detector-bert',
       {
         quantized: true,
         progress_callback: (p) => {
@@ -2061,7 +2075,7 @@ async function loadLM() {
             const mb = (p.loaded / 1_048_576).toFixed(1);
             label.textContent = `Downloading… ${mb} MB`;
           }
-        },
+        }
       }
     );
 
@@ -2069,11 +2083,11 @@ async function loadLM() {
     label.textContent = 'Ready.';
     setTimeout(() => overlay.classList.add('done'), 300);
   } catch (err) {
-    label.textContent = 'Failed to load model: ' + err.message;
-    bar.style.background = 'var(--red, #f87171)';
+    label.textContent = 'Classifier unavailable — local signal mode is ready.';
+    bar.style.background = 'var(--amber, #fbbf24)';
     bar.style.width = '100%';
     setTimeout(() => overlay.classList.add('done'), 1500);
-    console.error('BERT load failed:', err);
+    console.warn('Optional classifier failed to load; continuing with local signal mode.', err);
   }
 }
 
