@@ -26,7 +26,7 @@ Every response includes the following operational headers:
 | `Referrer-Policy` | Always `no-referrer`. |
 | `Permissions-Policy` | Disables camera, microphone, and geolocation access. |
 
-The service enforces a configurable sliding-window rate limit on POST requests. Defaults are **60 requests per 60 seconds per client IP**. A rejected request returns `429 Too Many Requests` with a `Retry-After` header.
+The service enforces a configurable sliding-window rate limit on POST requests. Defaults are **60 requests per 60 seconds per client IP**, with at most `MAX_RATE_KEYS` client keys retained in memory. A rejected request returns `429 Too Many Requests` with a `Retry-After` header.
 
 The default maximum input is **8,000 characters** and the default minimum is **8 whitespace-separated words**. Configure these values with `MAX_CHARS` and `MIN_WORDS`. Batch requests default to a maximum of **10 items**, controlled by `MAX_BATCH`.
 
@@ -39,7 +39,7 @@ Returns model readiness information for deployment health checks.
 ```json
 {
   "status": "ok",
-  "model": "DistilBERT (HC3)",
+  "model": "LinearSVC",
   "lm_loaded": true,
   "version": "2.0.0"
 }
@@ -62,7 +62,7 @@ Returns classifier metadata and the feature order used by the trained model.
 
 ```json
 {
-  "model_name": "DistilBERT (HC3)",
+  "model_name": "LinearSVC",
   "test_accuracy": 0.994,
   "test_auc": 1.0,
   "feature_names": [
@@ -81,8 +81,8 @@ Returns classifier metadata and the feature order used by the trained model.
   "n_classes": 2,
   "labels": ["likely_human", "mixed", "likely_ai"],
   "thresholds": {
-    "likely_ai": 0.6,
-    "likely_human": 0.4
+    "likely_ai": 0.7,
+    "likely_human": 0.3
   }
 }
 ```
@@ -129,7 +129,7 @@ The `text` field is trimmed before validation. Blank strings, non-string values,
       "ai_probability": 0.18
     }
   ],
-  "model_name": "DistilBERT (HC3)",
+  "model_name": "LinearSVC",
   "n_words": 20,
   "n_sentences": 2
 }
@@ -157,7 +157,7 @@ curl -sS "$BASE_URL/analyze/lite" \
   "label": "mixed",
   "ai_probability": 0.51,
   "confidence": 0.02,
-  "model_name": "DistilBERT (HC3)"
+  "model_name": "LinearSVC"
 }
 ```
 

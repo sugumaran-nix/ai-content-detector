@@ -10,6 +10,7 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app as app_module
+import inference
 
 
 LONG_TEXT = "This is a sufficiently long sample text for analysis. " * 3
@@ -102,6 +103,25 @@ def test_analyze_endpoint_rejects_blank_and_too_short_text(monkeypatch):
 
     assert blank.status_code == 422
     assert short.status_code == 422
+
+
+def test_probability_thresholds_match_public_verdict_bands():
+    assert inference.label_for_probability(0.70) == "likely_ai"
+    assert inference.label_for_probability(0.30) == "likely_human"
+    assert inference.label_for_probability(0.50) == "mixed"
+
+
+def test_batch_errors_do_not_leak_exception_details(monkeypatch):
+    monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
+    monkeypatch.setattr(app_module.inference, "predict_document", lambda text: (_ for _ in ()).throw(RuntimeError("private stack path")))
+
+    with TestClient(app_module.app) as client:
+        response = client.post("/batch", json={"texts": [LONG_TEXT]})
+
+    assert response.status_code == 200
+    assert response.json()[0]["error"] == "Inference failed for this item."
+    assert "private stack path" not in response.text
 
 
 def test_health_reports_unavailable_without_leaking_internal_error(monkeypatch):

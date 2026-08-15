@@ -18,7 +18,7 @@ lm.json format expected by index.html:
 """
 
 import json
-import pickle
+import pickle  # nosec B403 - reads only the trusted repository build artifact
 import sys
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def main():
 
     print(f"Loading {MODEL_PATH} ...")
     with open(MODEL_PATH, "rb") as f:
-        lm = pickle.load(f)
+        lm = pickle.load(f)  # nosec B301 - trusted artifact conversion, never user-supplied
 
     print(f"Vocab size : {lm.vocab_size}")
     print(f"Unigrams   : {len(lm.unigram_counts)}")

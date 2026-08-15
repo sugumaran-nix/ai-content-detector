@@ -22,12 +22,12 @@ The review combined source inspection, repository/configuration inventory, targe
 |---|---|---|---|---|
 | SEC-001 | Medium | Dependency | `pytest>=8,<9` resolved to a release reported by `pip-audit` as `PYSEC-2026-1845`, fixed in `9.0.3`. | **Fixed** by changing the requirement to `pytest>=9.0.3,<10.0`. |
 | SEC-002 | Medium | Deserialization | `pickle.load` is used for the classifier and reference language model. Pickle is code-executing serialization when the input is untrusted. | **Accepted with containment.** Artifacts are repository build outputs and must only come from a trusted build pipeline. Migrating to a safer artifact format is recommended as a future hardening project. |
-| SEC-003 | Medium | Supply chain | Training/build scripts call `load_dataset("Hello-SimpleAI/HC3", ...)` without pinning a dataset revision. A future upstream change could alter training inputs or build outputs. | **Open.** Pin a reviewed dataset commit/revision and record checksums in a reproducible training manifest before rebuilding production artifacts. |
-| SEC-004 | Medium | Configuration | `ALLOWED_ORIGINS` defaults to `*` for local development. If deployed without an override, any origin can make browser requests to the API. | **Mitigated by deployment config; open as a safe-default concern.** Production must set exact origins and deployment checks should fail when the wildcard is used outside development. FastAPI documents explicit CORS origin configuration for browser clients.[3] |
+| SEC-003 | Medium | Supply chain | Training/build scripts load the HC3 dataset. Unpinned upstream data could alter training inputs or build outputs. | **Mitigated.** Both training paths pin the reviewed Hugging Face revision `4d0ff18143b5a7e1b1e79beb540c04549d1e59d3`. Artifact checksums and a formal manifest remain recommended before future rebuilds. |
+| SEC-004 | Medium | Configuration | Permissive CORS defaults could allow unintended browser origins if deployed unchanged. | **Fixed.** The default is now an explicit local-origin allowlist, and production startup rejects empty or wildcard origins. FastAPI documents explicit origin configuration for browser clients.[3] |
 | SEC-005 | Medium | Information disclosure | Inference exceptions previously returned `str(exc)`, potentially exposing filesystem paths or dependency details. | **Fixed** with generic `500`/`503` response details and server-side logging. |
 | SEC-006 | Low | Header injection/trace integrity | Client-provided `X-Request-ID` was echoed without validation. | **Fixed** with a 64-character allowlist and generated fallback IDs. |
 | SEC-007 | Low | Browser hardening | The API did not set common response hardening headers. | **Fixed** with `nosniff`, `DENY`, `no-referrer`, and a restrictive `Permissions-Policy`. |
-| SEC-008 | Low | Resource consumption | The API has a per-IP in-process sliding-window limiter and bounded input/batch sizes. | **Mitigated, residual risk remains.** Multi-worker/multi-replica deployments need a gateway or shared limiter because the current store is process-local. |
+| SEC-008 | Low | Resource consumption | The API has a per-IP in-process sliding-window limiter and bounded input/batch sizes. | **Mitigated, residual risk remains.** The client-key store is now bounded by `MAX_RATE_KEYS`; multi-worker/multi-replica deployments still need a gateway or shared limiter because the current store is process-local. |
 | SEC-009 | Low | Frontend DOM sinks | The frontend uses `innerHTML` for controlled UI templates. The audit found no direct remote HTML injection path; dynamic user text is escaped where inserted into history/annotations. | **Monitored.** Prefer DOM node construction or Trusted Types if future features introduce remote/user-controlled HTML. |
 | SEC-010 | Low | Training scripts | Bandit flagged standard `random` use in dataset sampling and generation scripts. | **Accepted.** These calls are for deterministic dataset sampling, not secrets, tokens, or security decisions. |
 
@@ -43,7 +43,7 @@ Public inference failures now return stable messages: `Inference failed.` or `Mo
 
 ### CORS and deployment configuration
 
-The Render configuration sets a specific production frontend origin. Local development may use the wildcard fallback, but production deployment must override it. A CI/deployment policy should reject `ALLOWED_ORIGINS=*` for production environments. CORS is not authentication; if the API becomes private, add an authentication layer and authorization checks rather than relying on origin filtering.
+The Render configuration sets a specific production frontend origin. Local development now uses an explicit local-origin allowlist, and production startup rejects wildcard or empty origins. CORS is not authentication; if the API becomes private, add an authentication layer and authorization checks rather than relying on origin filtering.
 
 ### Serialization and model artifacts
 
@@ -75,7 +75,7 @@ Before remediation, `pip-audit` reported one known vulnerability in the old pyte
 
 ## Recommended next steps
 
-The highest-priority remaining item is to pin and attest the Hugging Face training dataset revision before the next model rebuild. The next operational priority is enforcing exact CORS origins and a shared rate limiter at the edge for multi-worker or multi-replica deployments. The longer-term model-security priority is replacing pickle artifacts with safer, integrity-checked formats.
+The highest-priority remaining items are recording artifact checksums in a reproducible training manifest and replacing pickle artifacts with safer, integrity-checked formats. Exact CORS origins and bounded in-process rate limiting are now enforced in the application, while multi-worker or multi-replica deployments should still add a shared edge limiter.
 
 ## References
 

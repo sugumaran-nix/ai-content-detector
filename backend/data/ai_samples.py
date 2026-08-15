@@ -278,7 +278,7 @@ _GENERATORS = [
 
 
 def generate_ai_paragraphs(n: int, seed: int = 42) -> list[str]:
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 - deterministic training-data generation, not security-sensitive
     topics = list(TOPICS)
     paragraphs = []
     while len(paragraphs) < n:

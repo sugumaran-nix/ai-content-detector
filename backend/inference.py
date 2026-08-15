@@ -26,6 +26,17 @@ log       = logging.getLogger("detector.inference")
 MODEL_DIR = Path(__file__).parent / "model"
 
 _BUNDLE: dict | None = None
+AI_THRESHOLD = 0.70
+HUMAN_THRESHOLD = 0.30
+
+
+def label_for_probability(ai_prob: float) -> str:
+    """Map calibrated probability to the public three-band verdict contract."""
+    if ai_prob >= AI_THRESHOLD:
+        return "likely_ai"
+    if ai_prob <= HUMAN_THRESHOLD:
+        return "likely_human"
+    return "mixed"
 
 
 # ── TypedDicts for clear return contracts ─────────────────────────────────────
@@ -102,12 +113,7 @@ def predict_document(text: str) -> DocumentResult:
     ai_prob    = float(bundle["model"].predict_proba(vec_scaled)[0][1])
     confidence = abs(ai_prob - 0.5) * 2   # 0 = uncertain, 1 = certain
 
-    if ai_prob >= 0.60:
-        label = "likely_ai"
-    elif ai_prob <= 0.40:
-        label = "likely_human"
-    else:
-        label = "mixed"
+    label = label_for_probability(ai_prob)
 
     # ── Sentence-level ────────────────────────────────────────────────────────
     raw_sentences = sent_tokenize(text)

@@ -41,7 +41,7 @@ def ensure_nltk_data():
 
 
 def build_human_paragraphs(n: int, seed: int = 7) -> list[str]:
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 - deterministic training-data generation, not security-sensitive
     det = TreebankWordDetokenizer()
     _lm_fileids, pool_fileids = brown_fileid_split()
     categories_seen = {}
@@ -78,7 +78,7 @@ def main():
     ai = generate_ai_paragraphs(N_PER_CLASS)
 
     rows = [(t, 0) for t in human] + [(t, 1) for t in ai]
-    random.Random(123).shuffle(rows)
+    random.Random(123).shuffle(rows)  # nosec B311 - deterministic dataset ordering, not security-sensitive
 
     with open(OUT_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)

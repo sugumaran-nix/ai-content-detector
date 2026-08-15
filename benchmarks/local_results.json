@@ -1,0 +1,42 @@
+{
+  "warmups": 3,
+  "iterations_per_sample": 30,
+  "accuracy": 1.0,
+  "median_ms": 53.353,
+  "p95_ms": 96.784,
+  "results": [
+    {
+      "sample": "ai",
+      "expected_label": "likely_ai",
+      "predicted_label": "likely_ai",
+      "ai_probability": 0.8962,
+      "correct": true,
+      "median_ms": 43.649,
+      "p95_ms": 44.083,
+      "min_ms": 43.128,
+      "max_ms": 44.337
+    },
+    {
+      "sample": "human",
+      "expected_label": "likely_human",
+      "predicted_label": "likely_human",
+      "ai_probability": 0.0719,
+      "correct": true,
+      "median_ms": 53.353,
+      "p95_ms": 54.238,
+      "min_ms": 52.568,
+      "max_ms": 54.831
+    },
+    {
+      "sample": "mixed",
+      "expected_label": "mixed",
+      "predicted_label": "mixed",
+      "ai_probability": 0.6398,
+      "correct": true,
+      "median_ms": 94.249,
+      "p95_ms": 96.784,
+      "min_ms": 92.152,
+      "max_ms": 98.989
+    }
+  ]
+}

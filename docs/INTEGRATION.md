@@ -81,22 +81,23 @@ Configure exact origins as a comma-separated environment variable:
 ALLOWED_ORIGINS=https://ai-content-detector-nine.vercel.app,http://localhost:5173
 ```
 
-Do not use `ALLOWED_ORIGINS=*` for a public production deployment. The wildcard is intended only as a local-development fallback. If a reverse proxy terminates TLS, ensure it forwards the browser’s `Origin` header and preserves the API response headers.
+The service now defaults to exact local development origins. Do not use `ALLOWED_ORIGINS=*` for a public production deployment; production startup rejects the wildcard and requires explicit origins. If a reverse proxy terminates TLS, ensure it forwards the browser’s `Origin` header and preserves the API response headers.
 
 ## Environment variables
 
 | Variable | Default | Purpose |
 |---|---:|---|
-| `ALLOWED_ORIGINS` | `*` | Exact origins allowed by CORS. Override in production. |
+| `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173` | Exact origins allowed by CORS. Production must set explicit origins. |
 | `MAX_CHARS` | `8000` | Maximum characters per text input. |
 | `MIN_WORDS` | `8` | Minimum whitespace-separated words for document analysis. |
 | `RATE_LIMIT` | `60` | POST requests allowed per client IP per window. |
 | `RATE_WINDOW` | `60` | Rate-limit window in seconds. |
 | `MAX_BATCH` | `10` | Maximum number of texts in a batch. |
+| `MAX_RATE_KEYS` | `10000` | Maximum in-memory client keys retained by the rate limiter. |
 | `NLTK_DATA` | platform-dependent | Optional NLTK corpus directory. |
 | `PORT` | platform-provided | Runtime port used by Render-style platforms. |
 
-The in-process rate limiter is appropriate for a single worker or small free-tier deployment. For multiple workers or multiple replicas, place a shared rate limiter at the gateway or use a shared store; otherwise each process maintains an independent counter.
+The in-process rate limiter is appropriate for a single worker or small free-tier deployment. Its in-memory key store is bounded by `MAX_RATE_KEYS`. For multiple workers or multiple replicas, place a shared rate limiter at the gateway or use a shared store; otherwise each process maintains an independent counter.
 
 ## Deployment with Docker
 

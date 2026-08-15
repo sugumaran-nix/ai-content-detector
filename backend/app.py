@@ -41,12 +41,19 @@ MIN_WORDS   = int(os.getenv("MIN_WORDS", 8))
 RATE_LIMIT  = int(os.getenv("RATE_LIMIT", 60))        # requests per window
 RATE_WINDOW = int(os.getenv("RATE_WINDOW", 60))       # seconds
 MAX_BATCH   = int(os.getenv("MAX_BATCH", 10))
+MAX_RATE_KEYS = int(os.getenv("MAX_RATE_KEYS", 10_000))
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 MODEL_DIR   = Path(__file__).parent / "model"
 
-# CORS: comma-separated list in env, default open for local dev
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+# CORS: exact local origins by default; production must be explicitly configured.
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173",
+)
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+if APP_ENV in {"production", "prod"} and (not ALLOWED_ORIGINS or "*" in ALLOWED_ORIGINS):
+    raise RuntimeError("ALLOWED_ORIGINS must contain exact origins in production.")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +68,9 @@ _rate_store: dict[str, deque] = defaultdict(deque)
 def _check_rate(ip: str) -> bool:
     """Return True if request is allowed, False if rate-limited."""
     now = time.monotonic()
+    if ip not in _rate_store and len(_rate_store) >= MAX_RATE_KEYS:
+        oldest_ip = min(_rate_store, key=lambda key: _rate_store[key][-1] if _rate_store[key] else 0)
+        _rate_store.pop(oldest_ip, None)
     dq  = _rate_store[ip]
     # drop timestamps older than window
     while dq and dq[0] < now - RATE_WINDOW:
@@ -264,7 +274,7 @@ def model_info():
         "feature_names":  bundle.get("feature_names"),
         "n_classes":      2,
         "labels":         ["likely_human", "mixed", "likely_ai"],
-        "thresholds":     {"likely_ai": 0.60, "likely_human": 0.40},
+        "thresholds":     {"likely_ai": inference.AI_THRESHOLD, "likely_human": inference.HUMAN_THRESHOLD},
     }
 
 
@@ -320,9 +330,10 @@ def batch_analyze(req: BatchRequest):
                 ai_probability=r["ai_probability"],
                 confidence=r["confidence"],
             ))
-        except Exception as exc:
+        except Exception:
+            log.exception("Batch inference error at index %s", i)
             results.append(BatchItemResponse(
                 index=i, label="error", ai_probability=0.0, confidence=0.0,
-                error=str(exc),
+                error="Inference failed for this item.",
             ))
     return results
