@@ -2,8 +2,8 @@
   "warmups": 3,
   "iterations_per_sample": 30,
   "accuracy": 1.0,
-  "median_ms": 53.353,
-  "p95_ms": 96.784,
+  "median_ms": 51.791,
+  "p95_ms": 91.951,
   "results": [
     {
       "sample": "ai",
@@ -11,10 +11,10 @@
       "predicted_label": "likely_ai",
       "ai_probability": 0.8962,
       "correct": true,
-      "median_ms": 43.649,
-      "p95_ms": 44.083,
-      "min_ms": 43.128,
-      "max_ms": 44.337
+      "median_ms": 42.472,
+      "p95_ms": 43.376,
+      "min_ms": 41.906,
+      "max_ms": 44.058
     },
     {
       "sample": "human",
@@ -22,10 +22,10 @@
       "predicted_label": "likely_human",
       "ai_probability": 0.0719,
       "correct": true,
-      "median_ms": 53.353,
-      "p95_ms": 54.238,
-      "min_ms": 52.568,
-      "max_ms": 54.831
+      "median_ms": 51.791,
+      "p95_ms": 52.534,
+      "min_ms": 51.138,
+      "max_ms": 54.642
     },
     {
       "sample": "mixed",
@@ -33,10 +33,10 @@
       "predicted_label": "mixed",
       "ai_probability": 0.6398,
       "correct": true,
-      "median_ms": 94.249,
-      "p95_ms": 96.784,
-      "min_ms": 92.152,
-      "max_ms": 98.989
+      "median_ms": 90.817,
+      "p95_ms": 91.951,
+      "min_ms": 89.968,
+      "max_ms": 92.443
     }
   ]
 }

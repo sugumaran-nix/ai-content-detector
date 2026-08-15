@@ -1645,10 +1645,18 @@ function predict(feats) {
     const p     = 1 / (1 + Math.exp(clf.cal_a * score + clf.cal_b));
     return p;
   });
-  const ai_probability = probs.reduce((a,b)=>a+b,0) / probs.length;
+  const rawProbability = probs.reduce((a,b)=>a+b,0) / probs.length;
+  const zScores = raw.map((v, i) => Math.abs((v - MODEL.scalerMean[i]) / MODEL.scalerStd[i]));
+  const maxFeatureZ = Math.max(...zScores);
+  const featurePenalty = Math.min(1, Math.max(0, (maxFeatureZ - 4) / 8));
+  const tokens = tokenize(document.getElementById('txtIn').value);
+  const unknownRatio = tokens.filter(token => !LM?.u?.[token]).length / Math.max(tokens.length, 1);
+  const domainPenalty = unknownRatio >= 0.075 && (rawProbability <= 0.15 || rawProbability >= 0.85) ? 0.75 : 0;
+  const penalty = Math.max(featurePenalty, domainPenalty);
+  const ai_probability = 0.5 + (rawProbability - 0.5) * (1 - penalty);
   const confidence     = Math.abs(ai_probability - 0.5) * 2;
-  const label = ai_probability >= 0.60 ? 'likely_ai' : ai_probability <= 0.40 ? 'likely_human' : 'mixed';
-  return { ai_probability: Math.round(ai_probability * 10000) / 10000, confidence: Math.round(confidence * 10000) / 10000, label };
+  const label = ai_probability >= 0.70 ? 'likely_ai' : ai_probability <= 0.30 ? 'likely_human' : 'mixed';
+  return { ai_probability: Math.round(ai_probability * 10000) / 10000, confidence: Math.round(confidence * 10000) / 10000, label, max_feature_z: Math.round(maxFeatureZ * 100) / 100, unknown_ratio: Math.round(unknownRatio * 10000) / 10000 };
 }
 
 function predictSentences(sentences) {

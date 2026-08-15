@@ -14,6 +14,7 @@ import inference
 
 
 LONG_TEXT = "This is a sufficiently long sample text for analysis. " * 3
+REPORT_TEXT = "Cygni system, possibly an extrasolar planet. The planet is distinctive for the interaction of its strong gravity with the centrifugal force due to its fast rotation, giving it a gradient in the perceived force of gravity from 3 g on the equator to 665 g on the planet's poles (diagram pictured). It is inhabited by native lifeforms, including an intelligent centipede-like species, the Mesklinities. Mesklin is considered an example of hard science fiction worldbuilding, an exotic milieu that accords with known facts and laws of physics. The planet is dissimilar to Earth, its inhabitants are commonly regarded as humanlike in behaviour."
 
 
 def test_analyze_request_strips_and_rejects_blank_text():
@@ -103,6 +104,13 @@ def test_analyze_endpoint_rejects_blank_and_too_short_text(monkeypatch):
 
     assert blank.status_code == 422
     assert short.status_code == 422
+
+
+def test_reported_factual_passage_is_not_overconfidently_human():
+    result = inference.predict_document(REPORT_TEXT)
+    assert result["label"] == "mixed"
+    assert 0.30 < result["ai_probability"] < 0.70
+    assert result["confidence"] < 0.10
 
 
 def test_probability_thresholds_match_public_verdict_bands():

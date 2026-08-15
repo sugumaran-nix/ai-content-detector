@@ -20,7 +20,8 @@ from typing import TypedDict
 import numpy as np
 from nltk.tokenize import sent_tokenize
 
-from features import FEATURE_NAMES, extract_features, ensure_nltk_data
+from features import FEATURE_NAMES, extract_features, ensure_nltk_data, get_lm
+from reference_lm import tokenize as lm_tokenize
 
 log       = logging.getLogger("detector.inference")
 MODEL_DIR = Path(__file__).parent / "model"
@@ -28,6 +29,20 @@ MODEL_DIR = Path(__file__).parent / "model"
 _BUNDLE: dict | None = None
 AI_THRESHOLD = 0.70
 HUMAN_THRESHOLD = 0.30
+OOD_START_Z = 4.0
+OOD_FULL_Z = 8.0
+
+
+def calibrate_probability(raw_probability: float, features: dict, bundle: dict, unknown_ratio: float = 0.0) -> tuple[float, float]:
+    """Shrink overconfident scores when feature values or vocabulary are far OOD."""
+    values = np.array([features[name] for name in FEATURE_NAMES], dtype=float)
+    z_scores = np.abs((values - bundle["scaler"].mean_) / bundle["scaler"].scale_)
+    max_z = float(np.max(z_scores)) if len(z_scores) else 0.0
+    feature_penalty = min(1.0, max(0.0, (max_z - OOD_START_Z) / OOD_FULL_Z))
+    domain_penalty = 0.75 if unknown_ratio >= 0.075 and (raw_probability <= 0.15 or raw_probability >= 0.85) else 0.0
+    penalty = max(feature_penalty, domain_penalty)
+    calibrated = 0.5 + (raw_probability - 0.5) * (1.0 - penalty)
+    return round(float(min(1.0, max(0.0, calibrated))), 4), round(max_z, 4)
 
 
 def label_for_probability(ai_prob: float) -> str:
@@ -110,7 +125,11 @@ def predict_document(text: str) -> DocumentResult:
     feats      = extract_features(text)
     vec        = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
     vec_scaled = bundle["scaler"].transform(vec)
-    ai_prob    = float(bundle["model"].predict_proba(vec_scaled)[0][1])
+    raw_probability = float(bundle["model"].predict_proba(vec_scaled)[0][1])
+    lm_tokens = lm_tokenize(text)
+    lm_vocab = get_lm().unigram_counts
+    unknown_ratio = sum(1 for token in lm_tokens if token not in lm_vocab) / max(len(lm_tokens), 1)
+    ai_prob, max_feature_z = calibrate_probability(raw_probability, feats, bundle, unknown_ratio)
     confidence = abs(ai_prob - 0.5) * 2   # 0 = uncertain, 1 = certain
 
     label = label_for_probability(ai_prob)
