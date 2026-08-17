@@ -74,6 +74,21 @@ class DocumentResult(TypedDict):
 
 # ── Bundle (model + scaler + metadata) ───────────────────────────────────────
 
+def _validate_bundle(bundle: object) -> dict:
+    """Validate the trusted model artifact before it enters the hot cache."""
+    if not isinstance(bundle, dict):
+        raise RuntimeError("Classifier artifact has an invalid shape.")
+    required = {"model", "scaler", "feature_names"}
+    missing = required.difference(bundle)
+    if missing:
+        raise RuntimeError("Classifier artifact is missing required metadata.")
+    if list(bundle["feature_names"]) != FEATURE_NAMES:
+        raise RuntimeError("Classifier feature order does not match the runtime contract.")
+    if not hasattr(bundle["model"], "predict_proba") or not hasattr(bundle["scaler"], "transform"):
+        raise RuntimeError("Classifier artifact does not expose the required inference methods.")
+    return bundle
+
+
 def get_bundle() -> dict:
     global _BUNDLE
     if _BUNDLE is None:
@@ -84,28 +99,67 @@ def get_bundle() -> dict:
                 "Run train.py or restart the server to trigger auto-build."
             )
         with open(path, "rb") as fh:
-            _BUNDLE = pickle.load(fh)  # nosec B301 - artifact is produced by the trusted build
+            loaded = pickle.load(fh)  # nosec B301 - artifact is produced by the trusted build
+        _BUNDLE = _validate_bundle(loaded)
         log.info("Classifier bundle loaded from %s", path)
     return _BUNDLE
 
 
 def get_lm_status() -> bool:
-    """Return True if the reference LM pkl exists (used by /health)."""
-    return (MODEL_DIR / "reference_lm.pkl").exists()
+    """Return True when the reference LM is present and loaded in memory."""
+    return get_lm() is not None
+
+
+def warmup() -> None:
+    """Load all runtime assets so readiness means the first request is warm."""
+    ensure_nltk_data()
+    get_bundle()
+    get_lm()
 
 
 # ── Core scoring ──────────────────────────────────────────────────────────────
 
-def _score_text(text: str, bundle: dict) -> float:
-    """
-    Return AI probability (0.0–1.0) for any piece of text.
+def _unknown_ratio(text: str) -> float:
+    tokens = lm_tokenize(text)
+    vocab = get_lm().unigram_counts
+    return sum(1 for token in tokens if token not in vocab) / max(len(tokens), 1)
 
-    Raises ValueError if feature extraction fails (caller should handle).
-    """
-    feats      = extract_features(text)
-    vec        = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
+
+def _predict_core(text: str, bundle: dict) -> tuple[dict, dict]:
+    """Return calibrated document metadata and extracted features."""
+    feats = extract_features(text)
+    vec = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
     vec_scaled = bundle["scaler"].transform(vec)
-    return float(bundle["model"].predict_proba(vec_scaled)[0][1])
+    raw_probability = float(bundle["model"].predict_proba(vec_scaled)[0][1])
+    ai_prob, max_feature_z = calibrate_probability(
+        raw_probability, feats, bundle, _unknown_ratio(text)
+    )
+    confidence = abs(ai_prob - 0.5) * 2
+    return {
+        "label": label_for_probability(ai_prob),
+        "ai_probability": round(ai_prob, 4),
+        "confidence": round(confidence, 4),
+        "max_feature_z": round(max_feature_z, 4),
+    }, feats
+
+
+def _score_text(text: str, bundle: dict) -> float:
+    """Return a calibrated AI probability for a sentence or short passage."""
+    result, _ = _predict_core(text, bundle)
+    return result["ai_probability"]
+
+
+def predict_lite(text: str) -> dict:
+    """Return only document-level fields for fast API consumers."""
+    ensure_nltk_data()
+    bundle = get_bundle()
+    result, _ = _predict_core(text, bundle)
+    return {
+        "label": result["label"],
+        "ai_probability": result["ai_probability"],
+        "confidence": result["confidence"],
+        "model_name": bundle.get("model_name"),
+    }
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -122,17 +176,10 @@ def predict_document(text: str) -> DocumentResult:
     bundle = get_bundle()
 
     # ── Document-level ────────────────────────────────────────────────────────
-    feats      = extract_features(text)
-    vec        = np.array([feats[n] for n in FEATURE_NAMES]).reshape(1, -1)
-    vec_scaled = bundle["scaler"].transform(vec)
-    raw_probability = float(bundle["model"].predict_proba(vec_scaled)[0][1])
-    lm_tokens = lm_tokenize(text)
-    lm_vocab = get_lm().unigram_counts
-    unknown_ratio = sum(1 for token in lm_tokens if token not in lm_vocab) / max(len(lm_tokens), 1)
-    ai_prob, max_feature_z = calibrate_probability(raw_probability, feats, bundle, unknown_ratio)
-    confidence = abs(ai_prob - 0.5) * 2   # 0 = uncertain, 1 = certain
-
-    label = label_for_probability(ai_prob)
+    core, feats = _predict_core(text, bundle)
+    ai_prob = core["ai_probability"]
+    confidence = core["confidence"]
+    label = core["label"]
 
     # ── Sentence-level ────────────────────────────────────────────────────────
     raw_sentences = sent_tokenize(text)

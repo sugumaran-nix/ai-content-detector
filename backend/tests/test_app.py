@@ -35,6 +35,7 @@ def test_batch_request_rejects_blank_non_string_and_oversized_items():
 
 def test_analyze_endpoint_returns_request_metadata_and_prediction(monkeypatch):
     monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
     monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
     monkeypatch.setattr(
         app_module.inference,
@@ -66,6 +67,7 @@ def test_analyze_endpoint_returns_request_metadata_and_prediction(monkeypatch):
 
 def test_invalid_request_id_is_replaced(monkeypatch):
     monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
     monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
     monkeypatch.setattr(app_module.inference, "predict_document", lambda text: {
         "label": "mixed", "ai_probability": 0.5, "confidence": 0.0,
@@ -83,6 +85,7 @@ def test_invalid_request_id_is_replaced(monkeypatch):
 
 def test_inference_errors_do_not_leak_exception_details(monkeypatch):
     monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
     monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
     monkeypatch.setattr(app_module.inference, "predict_document", lambda text: (_ for _ in ()).throw(RuntimeError("secret backend path")))
 
@@ -96,6 +99,7 @@ def test_inference_errors_do_not_leak_exception_details(monkeypatch):
 
 def test_analyze_endpoint_rejects_blank_and_too_short_text(monkeypatch):
     monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
     monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
 
     with TestClient(app_module.app) as client:
@@ -121,6 +125,7 @@ def test_probability_thresholds_match_public_verdict_bands():
 
 def test_batch_errors_do_not_leak_exception_details(monkeypatch):
     monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
     monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {"model_name": "test-model"})
     monkeypatch.setattr(app_module.inference, "predict_document", lambda text: (_ for _ in ()).throw(RuntimeError("private stack path")))
 
@@ -130,6 +135,43 @@ def test_batch_errors_do_not_leak_exception_details(monkeypatch):
     assert response.status_code == 200
     assert response.json()[0]["error"] == "Inference failed for this item."
     assert "private stack path" not in response.text
+
+
+def test_root_exposes_service_contract():
+    payload = app_module.root()
+    assert payload["health"] == "/health"
+    assert "/analyze/lite" in payload["endpoints"]
+
+
+def test_model_info_includes_feature_count(monkeypatch):
+    monkeypatch.setattr(app_module.inference, "get_bundle", lambda: {
+        "model_name": "test-model",
+        "feature_names": ["a", "b"],
+        "test_accuracy": 0.9,
+        "test_auc": 0.95,
+    })
+    payload = app_module.model_info()
+    assert payload["n_features"] == 2
+    assert payload["thresholds"]["likely_ai"] == 0.70
+
+
+def test_lite_endpoint_uses_lite_inference_contract(monkeypatch):
+    monkeypatch.setattr(app_module, "_ensure_models", lambda: None)
+    monkeypatch.setattr(app_module.inference, "warmup", lambda: None)
+    monkeypatch.setattr(app_module.inference, "predict_lite", lambda text: {
+        "label": "mixed", "ai_probability": 0.5, "confidence": 0.0, "model_name": "test-model"
+    })
+    with TestClient(app_module.app) as client:
+        response = client.post("/analyze/lite", json={"text": LONG_TEXT})
+    assert response.status_code == 200
+    assert response.json()["model_name"] == "test-model"
+
+
+def test_request_size_limit_returns_413(monkeypatch):
+    monkeypatch.setattr(app_module, "MAX_REQUEST_BYTES", 10)
+    with TestClient(app_module.app) as client:
+        response = client.post("/analyze", content='{"text":"too large"}', headers={"content-type": "application/json", "content-length": "100"})
+    assert response.status_code == 413
 
 
 def test_health_reports_unavailable_without_leaking_internal_error(monkeypatch):

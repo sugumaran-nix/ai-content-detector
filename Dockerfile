@@ -23,6 +23,8 @@ RUN python -c "import nltk; nltk.data.path.insert(0, '/app/nltk_data'); \
 
 # Build reference LM + train classifier — image ships ready-to-serve
 RUN python reference_lm.py && python train.py
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
 
 # HF Spaces Docker SDK default port; Render uses $PORT (overridden at runtime)
 EXPOSE 7860

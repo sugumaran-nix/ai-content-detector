@@ -1,7 +1,7 @@
 "use strict";
 
 function setLoadingState(elements, state) {
-  const { overlay, label, bar } = elements;
+  const { overlay, label, bar, status } = elements;
   if (!overlay || !label || !bar) throw new Error("Loading state elements are required");
 
   const states = {
@@ -13,6 +13,10 @@ function setLoadingState(elements, state) {
 
   if (state === "skipped") {
     overlay.classList.add("done");
+    if (status) {
+      status.textContent = "Signal mode";
+      status.dataset.state = "signal";
+    }
     return;
   }
 
@@ -20,6 +24,11 @@ function setLoadingState(elements, state) {
   if (!next) throw new Error(`Unknown loading state: ${state}`);
   label.textContent = next.label;
   label.setAttribute("aria-live", "polite");
+  if (status) {
+    status.textContent = state === "ready" ? "Local engine ready" :
+      state === "unavailable" ? "Signal mode" : "Loading local engine";
+    status.dataset.state = state;
+  }
   bar.style.width = next.width;
   bar.style.background = next.color;
   bar.parentElement?.setAttribute("aria-valuenow", next.width.replace("%", ""));

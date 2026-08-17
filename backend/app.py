@@ -36,14 +36,27 @@ from pydantic import BaseModel, Field, field_validator
 import inference
 
 # ── Config ───────────────────────────────────────────────────────────────────
-MAX_CHARS   = int(os.getenv("MAX_CHARS", 8_000))
-MIN_WORDS   = int(os.getenv("MIN_WORDS", 8))
-RATE_LIMIT  = int(os.getenv("RATE_LIMIT", 60))        # requests per window
-RATE_WINDOW = int(os.getenv("RATE_WINDOW", 60))       # seconds
-MAX_BATCH   = int(os.getenv("MAX_BATCH", 10))
-MAX_RATE_KEYS = int(os.getenv("MAX_RATE_KEYS", 10_000))
+def _env_int(name: str, default: int, minimum: int = 1, maximum: int | None = None) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    if value < minimum:
+        value = default
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+MAX_CHARS = _env_int("MAX_CHARS", 8_000, 100, 100_000)
+MIN_WORDS = _env_int("MIN_WORDS", 8, 1, 10_000)
+RATE_LIMIT = _env_int("RATE_LIMIT", 60, 1, 100_000)
+RATE_WINDOW = _env_int("RATE_WINDOW", 60, 1, 86_400)
+MAX_BATCH = _env_int("MAX_BATCH", 10, 1, 1_000)
+MAX_RATE_KEYS = _env_int("MAX_RATE_KEYS", 10_000, 100, 1_000_000)
+MAX_REQUEST_BYTES = _env_int("MAX_REQUEST_BYTES", 200_000, 1_024, 10_000_000)
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
-MODEL_DIR   = Path(__file__).parent / "model"
+MODEL_DIR = Path(__file__).parent / "model"
 
 # CORS: exact local origins by default; production must be explicitly configured.
 APP_ENV = os.getenv("APP_ENV", "development").lower()
@@ -103,7 +116,7 @@ def _ensure_models() -> None:
 async def lifespan(app: FastAPI):
     t0 = time.perf_counter()
     _ensure_models()
-    inference.get_bundle()          # warm into memory
+    inference.warmup()
     elapsed = time.perf_counter() - t0
     log.info(f"Model ready in {elapsed:.2f}s")
     yield
@@ -150,6 +163,23 @@ async def add_request_metadata(request: Request, call_next):
     return resp
 
 
+# ── Request-size middleware ──────────────────────────────────────────────────
+@app.middleware("http")
+async def request_size_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            too_large = int(content_length) > MAX_REQUEST_BYTES
+        except ValueError:
+            too_large = True
+        if too_large:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body exceeds the {MAX_REQUEST_BYTES}-byte limit."},
+            )
+    return await call_next(request)
+
+
 # ── Rate-limit middleware ─────────────────────────────────────────────────────
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
@@ -159,7 +189,11 @@ async def rate_limit_middleware(request: Request, call_next):
             return JSONResponse(
                 status_code=429,
                 content={"detail": f"Rate limit exceeded — max {RATE_LIMIT} requests per {RATE_WINDOW}s."},
-                headers={"Retry-After": str(RATE_WINDOW)},
+                headers={
+                    "Retry-After": str(RATE_WINDOW),
+                    "X-RateLimit-Limit": str(RATE_LIMIT),
+                    "X-RateLimit-Remaining": "0",
+                },
             )
     return await call_next(request)
 
@@ -244,17 +278,34 @@ def _validate_length(text: str) -> None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@app.get("/", summary="API service information")
+def root():
+    return {
+        "name": app.title,
+        "version": app.version,
+        "docs": "/docs",
+        "health": "/health",
+        "endpoints": ["/analyze", "/analyze/lite", "/batch", "/model-info"],
+    }
+
+
 @app.get("/health", summary="Liveness + readiness check")
 def health():
     try:
         bundle = inference.get_bundle()
         model_name = bundle.get("model_name", "unknown")
-        lm_loaded  = inference.get_lm_status()
+        lm_loaded = inference.get_lm_status()
         return {
-            "status":     "ok",
-            "model":      model_name,
-            "lm_loaded":  lm_loaded,
-            "version":    app.version,
+            "status": "ok" if lm_loaded else "degraded",
+            "ready": bool(lm_loaded),
+            "model": model_name,
+            "lm_loaded": lm_loaded,
+            "version": app.version,
+            "limits": {
+                "max_chars": MAX_CHARS,
+                "min_words": MIN_WORDS,
+                "max_batch": MAX_BATCH,
+            },
         }
     except Exception:
         log.exception("Health check failed")
@@ -266,15 +317,19 @@ def health():
 
 @app.get("/model-info", summary="Classifier metadata and test metrics")
 def model_info():
-    bundle = inference.get_bundle()
+    try:
+        bundle = inference.get_bundle()
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Model service is not ready.")
     return {
-        "model_name":     bundle.get("model_name"),
-        "test_accuracy":  bundle.get("test_accuracy"),
-        "test_auc":       bundle.get("test_auc"),
-        "feature_names":  bundle.get("feature_names"),
-        "n_classes":      2,
-        "labels":         ["likely_human", "mixed", "likely_ai"],
-        "thresholds":     {"likely_ai": inference.AI_THRESHOLD, "likely_human": inference.HUMAN_THRESHOLD},
+        "model_name": bundle.get("model_name"),
+        "test_accuracy": bundle.get("test_accuracy"),
+        "test_auc": bundle.get("test_auc"),
+        "feature_names": bundle.get("feature_names"),
+        "n_features": len(bundle.get("feature_names", [])),
+        "n_classes": 2,
+        "labels": ["likely_human", "mixed", "likely_ai"],
+        "thresholds": {"likely_ai": inference.AI_THRESHOLD, "likely_human": inference.HUMAN_THRESHOLD},
     }
 
 
@@ -295,7 +350,7 @@ def analyze(req: AnalyzeRequest):
 def analyze_lite(req: AnalyzeRequest):
     _validate_length(req.text)
     try:
-        result = inference.predict_document(req.text)
+        result = inference.predict_lite(req.text)
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="Model service is not ready.")
     except Exception:

@@ -2,6 +2,8 @@
   "name": "ai-content-detector-ui",
   "private": true,
   "scripts": {
-    "test": "node --test test/ui.test.js"
+    "test": "node --test test/ui.test.js",
+    "check": "node --check ui-state.js && npm test",
+    "test:backend": "PYTHONPATH=backend pytest -q backend/tests"
   }
 }

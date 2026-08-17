@@ -13,6 +13,20 @@ uvicorn app:app --reload --host 127.0.0.1 --port 8000
 
 The API accepts and returns JSON. Clients should send `Content-Type: application/json` for POST requests. The service does not require authentication in the current deployment; place it behind an authenticated gateway before exposing it to private or high-value workloads.
 
+## `GET /`
+
+Returns a small service-discovery payload for operators and client integrations.
+
+```json
+{
+  "name": "AI-Generated Text Detector",
+  "version": "2.0.0",
+  "docs": "/docs",
+  "health": "/health",
+  "endpoints": ["/analyze", "/analyze/lite", "/batch", "/model-info"]
+}
+```
+
 ## Common request and response behavior
 
 Every response includes the following operational headers:
@@ -26,9 +40,9 @@ Every response includes the following operational headers:
 | `Referrer-Policy` | Always `no-referrer`. |
 | `Permissions-Policy` | Disables camera, microphone, and geolocation access. |
 
-The service enforces a configurable sliding-window rate limit on POST requests. Defaults are **60 requests per 60 seconds per client IP**, with at most `MAX_RATE_KEYS` client keys retained in memory. A rejected request returns `429 Too Many Requests` with a `Retry-After` header.
+The service enforces a configurable sliding-window rate limit on POST requests. Defaults are **60 requests per 60 seconds per client IP**, with at most `MAX_RATE_KEYS` client keys retained in memory. A rejected request returns `429 Too Many Requests` with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining` headers.
 
-The default maximum input is **8,000 characters** and the default minimum is **8 whitespace-separated words**. Configure these values with `MAX_CHARS` and `MIN_WORDS`. Batch requests default to a maximum of **10 items**, controlled by `MAX_BATCH`.
+The default maximum input is **8,000 characters** and the default minimum is **8 whitespace-separated words**. Configure these values with `MAX_CHARS` and `MIN_WORDS`. Batch requests default to a maximum of **10 items**, controlled by `MAX_BATCH`. The request body is capped at `MAX_REQUEST_BYTES`, which defaults to 200,000 bytes and returns `413 Payload Too Large` before JSON parsing when exceeded.
 
 ## `GET /health`
 
@@ -39,9 +53,15 @@ Returns model readiness information for deployment health checks.
 ```json
 {
   "status": "ok",
+  "ready": true,
   "model": "LinearSVC",
   "lm_loaded": true,
-  "version": "2.0.0"
+  "version": "2.0.0",
+  "limits": {
+    "max_chars": 8000,
+    "min_words": 8,
+    "max_batch": 10
+  }
 }
 ```
 
@@ -78,6 +98,7 @@ Returns classifier metadata and the feature order used by the trained model.
     "pos_entropy",
     "readability"
   ],
+  "n_features": 11,
   "n_classes": 2,
   "labels": ["likely_human", "mixed", "likely_ai"],
   "thresholds": {
@@ -204,6 +225,7 @@ Batch validation rejects blank, non-string, oversized, or more-than-maximum entr
 | Status | Meaning | Typical body |
 |---|---|---|
 | `200` | Request completed successfully. | Endpoint-specific response. |
+| `413` | Request body exceeded `MAX_REQUEST_BYTES`. | `{"detail":"Request body exceeds the ...-byte limit."}`. |
 | `422` | JSON shape or input validation failed. | FastAPI validation details or a minimum-word message. |
 | `429` | Rate limit exceeded. | `{"detail":"Rate limit exceeded ..."}` plus `Retry-After`. |
 | `500` | Unexpected inference failure. | `{"detail":"Inference failed."}` without internal exception details. |

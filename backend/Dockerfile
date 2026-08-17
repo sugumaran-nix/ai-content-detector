@@ -15,6 +15,8 @@ RUN python -c "import nltk; [nltk.download(p, quiet=True) for p in ['brown','pun
     && python data/build_dataset.py \
     && python -c "from reference_lm import build_reference_lm, save_reference_lm; save_reference_lm(build_reference_lm())" \
     && python train.py
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Hugging Face Spaces (Docker SDK) expects the app on port 7860 by default.
 EXPOSE 7860
