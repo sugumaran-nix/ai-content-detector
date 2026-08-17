@@ -5,16 +5,16 @@ function setLoadingState(elements, state) {
   if (!overlay || !label || !bar) throw new Error("Loading state elements are required");
 
   const states = {
-    loading: { label: "Loading language model…", width: "15%", color: "var(--accent)" },
-    downloading: { label: "Downloading model weights…", width: "35%", color: "var(--accent)" },
-    ready: { label: "Ready to scan.", width: "100%", color: "var(--accent)" },
-    unavailable: { label: "Full model unavailable — limited scan mode is ready.", width: "100%", color: "var(--amber, #fbbf24)" },
+    loading: { label: "Preparing your local scanner…", width: "15%", color: "var(--accent)" },
+    downloading: { label: "Loading local scan data…", width: "35%", color: "var(--accent)" },
+    ready: { label: "Your scanner is ready.", width: "100%", color: "var(--accent)" },
+    unavailable: { label: "Full scan data is unavailable — quick scan is ready.", width: "100%", color: "var(--amber, #fbbf24)" },
   };
 
   if (state === "skipped") {
     overlay.classList.add("done");
     if (status) {
-      status.textContent = "Limited scan mode";
+      status.textContent = "Quick scan ready";
       status.dataset.state = "signal";
     }
     return;
@@ -26,7 +26,7 @@ function setLoadingState(elements, state) {
   label.setAttribute("aria-live", "polite");
   if (status) {
     status.textContent = state === "ready" ? "Ready to scan" :
-      state === "unavailable" ? "Limited scan mode" : "Preparing scanner";
+      state === "unavailable" ? "Quick scan ready" : "Preparing scan";
     status.dataset.state = state;
   }
   bar.style.width = next.width;
