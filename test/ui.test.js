@@ -29,13 +29,25 @@ function createElements() {
 test("analyzer textarea exposes its supporting guidance", () => {
   assert.match(html, /<textarea[^>]*aria-label="Text to analyze"[^>]*aria-describedby="inputHint"/);
   assert.match(html, /<p class="input-hint" id="inputHint">For a steadier result/);
+  assert.match(html, /id="analyzeBtn" aria-label="Run private scan"/);
 });
 
 test("built-in samples and model metadata match the local classifier", () => {
   assert.match(html, /id="sampleMixed"/);
   assert.match(html, /mixed: `Large language models have revolutionized/);
   assert.match(html, /mixed: `[^`]*I've been trying to fix this bug/);
-  assert.match(html, /<div class="mstat-v">LinearSVC<\/div>/);
+  assert.match(html, /<div class="mstat-v">Calibrated local model<\/div>/);
+});
+
+test("idle and report states use user-facing guidance", () => {
+  assert.match(html, /class="empty-preview"/);
+  assert.match(html, /REPORT PREVIEW/);
+  assert.match(html, /ANALYSIS COMPLETE/);
+  assert.match(html, /Sentence evidence/);
+  assert.doesNotMatch(html, /<div class="mstat-v">LinearSVC<\/div>/);
+  assert.doesNotMatch(html, /Private by default|No API|No uploads/);
+  assert.match(html, /Runs in your browser/);
+  assert.match(html, /Explainable signals/);
 });
 
 test("loading overlay exposes live status and progress semantics", () => {
@@ -56,7 +68,7 @@ test("loading state updates status, progress, and accessible value", () => {
 test("ready state completes and dismisses the overlay", () => {
   const elements = createElements();
   setLoadingState(elements, "ready");
-  assert.equal(elements.label.textContent, "Ready.");
+  assert.equal(elements.label.textContent, "Ready to scan.");
   assert.equal(elements.bar.style.width, "100%");
   assert.equal(elements.overlay.classList.contains("done"), true);
 });
@@ -64,7 +76,7 @@ test("ready state completes and dismisses the overlay", () => {
 test("unavailable state keeps local mode understandable", () => {
   const elements = createElements();
   setLoadingState(elements, "unavailable");
-  assert.match(elements.label.textContent, /local signal mode is ready/);
+  assert.match(elements.label.textContent, /limited scan mode is ready/);
   assert.equal(elements.bar.style.background, "var(--amber, #fbbf24)");
   assert.equal(elements.overlay.classList.contains("done"), true);
 });

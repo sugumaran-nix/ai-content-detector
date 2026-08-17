@@ -7,14 +7,14 @@ function setLoadingState(elements, state) {
   const states = {
     loading: { label: "Loading language model…", width: "15%", color: "var(--accent)" },
     downloading: { label: "Downloading model weights…", width: "35%", color: "var(--accent)" },
-    ready: { label: "Ready.", width: "100%", color: "var(--accent)" },
-    unavailable: { label: "Classifier unavailable — local signal mode is ready.", width: "100%", color: "var(--amber, #fbbf24)" },
+    ready: { label: "Ready to scan.", width: "100%", color: "var(--accent)" },
+    unavailable: { label: "Full model unavailable — limited scan mode is ready.", width: "100%", color: "var(--amber, #fbbf24)" },
   };
 
   if (state === "skipped") {
     overlay.classList.add("done");
     if (status) {
-      status.textContent = "Signal mode";
+      status.textContent = "Limited scan mode";
       status.dataset.state = "signal";
     }
     return;
@@ -25,8 +25,8 @@ function setLoadingState(elements, state) {
   label.textContent = next.label;
   label.setAttribute("aria-live", "polite");
   if (status) {
-    status.textContent = state === "ready" ? "Local engine ready" :
-      state === "unavailable" ? "Signal mode" : "Loading local engine";
+    status.textContent = state === "ready" ? "Ready to scan" :
+      state === "unavailable" ? "Limited scan mode" : "Preparing scanner";
     status.dataset.state = state;
   }
   bar.style.width = next.width;
