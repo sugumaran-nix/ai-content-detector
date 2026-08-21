@@ -308,11 +308,15 @@ body::before{
 ═══════════════════════════════════ */
 #loadOverlay{
   position:fixed;inset:0;z-index:9000;
-  background:var(--ground);
+  padding:24px;
+  background:color-mix(in srgb,var(--ground) 78%, transparent);
+  backdrop-filter:blur(4px);
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:var(--sp-4);
-  transition:opacity 0.4s ease-out, visibility 0.4s;
+  transition:opacity 0.25s ease-out, visibility 0.25s;
 }
+#loadOverlay::before{content:"";position:absolute;inset:50% auto auto 50%;width:min(420px,calc(100vw - 32px));height:min(330px,calc(100vh - 48px));transform:translate(-50%,-50%);border:1px solid var(--rule-strong);border-radius:14px;background:color-mix(in srgb,var(--surface) 92%, transparent);box-shadow:0 24px 70px rgba(0,0,0,.26);pointer-events:none}
+#loadOverlay > *{position:relative;z-index:1}
 #loadOverlay.done{opacity:0;visibility:hidden;pointer-events:none;}
 .load-logo{
   font-family:var(--mono);font-size:14px;font-weight:600;
@@ -330,7 +334,7 @@ body::before{
 .load-skip{
   font-size:11px;color:var(--t2);cursor:pointer;
   border:1px solid var(--rule-strong);border-radius:var(--r-sm);
-  padding:7px 12px;background:var(--raised);
+  min-height:44px;padding:10px 14px;background:var(--raised);
   transition:color 150ms ease-out;
   text-decoration:underline;text-underline-offset:3px;
 }
@@ -1216,14 +1220,14 @@ body::before{background-image:radial-gradient(ellipse 70% 50% at 20% -10%,rgba(1
 <a class="skip-link" href="#analyzer">Skip to analyzer</a>
 
 <!-- Load overlay -->
-<div id="loadOverlay">
+<div id="loadOverlay" role="dialog" aria-modal="true" aria-labelledby="loadTitle" aria-describedby="loadNote" tabindex="-1">
   <div class="load-logo">
     <div class="logo-dot"></div>
-    AI Text Detector
-  </div>
+    <span id="loadTitle">AI Text Detector</span>
+    </div>
     <div class="load-track" role="progressbar" aria-label="Preparing local writing model" aria-valuemin="0" aria-valuemax="100" aria-valuenow="10"><div class="load-bar" id="loadBar" style="width:10%"></div></div>
     <div id="loadLabel" aria-live="polite">Preparing your local scanner…</div>
-    <div class="load-note">The scanner runs in this browser, so your passage stays on this device.</div>
+    <div class="load-note" id="loadNote">The scanner runs in this browser, so your passage stays on this device.</div>
     <button class="load-skip" id="loadSkip" type="button">Use quick scan instead</button>
 </div>
 
@@ -2159,6 +2163,7 @@ async function loadLM() {
   const status  = document.getElementById('engineStatus');
   const setLoadingState = window.AppUI.setLoadingState;
   let userSkipped = false;
+  overlay.focus({ preventScroll: true });
 
   skip.addEventListener('click', () => {
     userSkipped = true;
@@ -2168,10 +2173,12 @@ async function loadLM() {
 
   try {
     setLoadingState({ overlay, label, bar, status }, 'loading');
-    const [modelResponse, lmResponse] = await Promise.all([
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Local model startup timed out')), 12000));
+    const assets = Promise.all([
       fetch('./model.json', { cache: 'force-cache' }),
       fetch('./lm.json', { cache: 'force-cache' }),
     ]);
+    const [modelResponse, lmResponse] = await Promise.race([assets, timeout]);
     if (!modelResponse.ok) throw new Error(`model.json returned ${modelResponse.status}`);
     if (!lmResponse.ok) throw new Error(`lm.json returned ${lmResponse.status}`);
     const [modelData, lmData] = await Promise.all([modelResponse.json(), lmResponse.json()]);
@@ -2181,11 +2188,11 @@ async function loadLM() {
     bar.style.width = '90%';
     label.textContent = 'Finishing your local scanner…';
     setLoadingState({ overlay, label, bar, status }, 'ready');
-    setTimeout(() => overlay.classList.add('done'), 300);
+    setTimeout(() => { overlay.classList.add('done'); document.getElementById('txtIn')?.focus({ preventScroll: true }); }, 120);
   } catch (err) {
     if (userSkipped) return;
     setLoadingState({ overlay, label, bar, status }, 'unavailable');
-    setTimeout(() => overlay.classList.add('done'), 1500);
+    setTimeout(() => { overlay.classList.add('done'); document.getElementById('txtIn')?.focus({ preventScroll: true }); }, 600);
     console.warn('Local model assets failed to load; using fallback signal mode.', err);
   }
 }
